@@ -93,7 +93,7 @@ class Event(Base):
         Integer,
         ForeignKey(
             "employee.id_employee",
-            onupdate="ON CASCADE",
+            onupdate="CASCADE",
             ondelete="RESTRICT",
         ),
         nullable=True,
