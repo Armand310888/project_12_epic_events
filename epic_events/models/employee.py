@@ -19,6 +19,7 @@ from epic_events.database import Base
 
 if TYPE_CHECKING:
     from epic_events.models.role import Role
+    from epic_events.models.customer import Customer
 
 
 class Employee(Base):
@@ -54,6 +55,7 @@ class Employee(Base):
     )
 
     id_role: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey(
             "role.id_role",
             onupdate="CASCADE",
@@ -63,7 +65,11 @@ class Employee(Base):
     )
 
     role: Mapped["Role"] = relationship(
-        back_populates="employees"
+        back_populates="employees",
+    )
+
+    customers: Mapped[list["Customer"]] = relationship(
+        back_populates="sales_employee",
     )
 
     def __repr__(self) -> str:

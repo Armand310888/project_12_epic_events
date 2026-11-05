@@ -35,7 +35,7 @@ class Role(Base):
     )
 
     employees: Mapped[list["Employee"]] = relationship(
-        back_populates="role"
+        back_populates="role",
     )
 
     def __repr__(self) -> str:
