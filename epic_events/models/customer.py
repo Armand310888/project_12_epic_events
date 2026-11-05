@@ -7,9 +7,9 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
-    func,
     Integer,
     String,
+    func,
     text,
 )
 from sqlalchemy.orm import (
@@ -21,8 +21,8 @@ from sqlalchemy.orm import (
 from epic_events.database import Base
 
 if TYPE_CHECKING:
-    from epic_events.models.employee import Employee
     from epic_events.models.contract import Contract
+    from epic_events.models.employee import Employee
 
 
 class Customer(Base):

@@ -18,8 +18,9 @@ from sqlalchemy.orm import (
 from epic_events.database import Base
 
 if TYPE_CHECKING:
-    from epic_events.models.role import Role
     from epic_events.models.customer import Customer
+    from epic_events.models.event import Event
+    from epic_events.models.role import Role
 
 
 class Employee(Base):
@@ -70,6 +71,10 @@ class Employee(Base):
 
     customers: Mapped[list["Customer"]] = relationship(
         back_populates="sales_employee",
+    )
+
+    events: Mapped[list["Event"]] = relationship(
+        back_populates="support_employee",
     )
 
     def __repr__(self) -> str:

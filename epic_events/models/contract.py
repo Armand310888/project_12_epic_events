@@ -1,7 +1,7 @@
 """Define the SQLAlchemy ORM model for customer contracts."""
 
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -9,9 +9,9 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
-    func,
     Integer,
     Numeric,
+    func,
     text,
 )
 from sqlalchemy.orm import (
@@ -24,6 +24,7 @@ from epic_events.database import Base
 
 if TYPE_CHECKING:
     from epic_events.models.customer import Customer
+    from epic_events.models.event import Event
 
 
 class Contract(Base):
@@ -97,6 +98,10 @@ class Contract(Base):
 
     customer: Mapped["Customer"] = relationship(
         back_populates="contracts"
+    )
+
+    events: Mapped[list["Event"]] = relationship(
+        back_populates="contract"
     )
 
     def __repr__(self) -> str:
