@@ -2,7 +2,9 @@
 
 
 import os
-from sqlalchemy import create_engine, URL
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 password = os.environ["EPIC_EVENTS_DB_PASSWORD"]
 
@@ -20,3 +22,12 @@ engine = create_engine(url=url, echo=True)
 if __name__ == "__main__":
     with engine.connect() as connection:
         print("Connection successful!")
+
+
+class Base(DeclarativeBase):
+    """Base class for all SQLAlchemy ORM models."""
+
+    pass
+
+
+session_factory = sessionmaker(bind=engine)
