@@ -22,6 +22,7 @@ from epic_events.database import Base
 
 if TYPE_CHECKING:
     from epic_events.models.employee import Employee
+    from epic_events.models.contract import Contract
 
 
 class Customer(Base):
@@ -87,6 +88,10 @@ class Customer(Base):
 
     sales_employee: Mapped["Employee"] = relationship(
         back_populates="customers",
+    )
+
+    contracts: Mapped[list["Contract"]] = relationship(
+        back_populates="customer"
     )
 
     def __repr__(self) -> str:
