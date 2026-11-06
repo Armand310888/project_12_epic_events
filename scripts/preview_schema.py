@@ -3,8 +3,8 @@
 from sqlalchemy.dialects import mysql
 from sqlalchemy.schema import CreateTable
 
-from epic_events.database import Base
 import epic_events.models
+from epic_events.database import Base
 
 
 print("USE epic_events;")
