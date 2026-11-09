@@ -140,7 +140,9 @@ def test_contract_balance_can_equal_total(db_session, sample_customer):
     db_session.add(contract)
     db_session.commit()
 
-    statement = select(Contract).where(Contract.id_contract == contract.id_contract)
+    statement = (
+        select(Contract).where(Contract.id_contract == contract.id_contract)
+    )
     result = db_session.scalar(statement)
 
     assert result is not None
