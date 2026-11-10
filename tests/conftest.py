@@ -9,6 +9,16 @@ from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 
 from epic_events.models import Contract, Customer, Employee, Role
+from epic_events.security.passwords import hash_password
+
+TEST_EMPLOYEE_PASSWORD = "TestPassword123!"
+TEST_EMPLOYEE_PASSWORD_HASH = hash_password(TEST_EMPLOYEE_PASSWORD)
+
+
+@pytest.fixture
+def test_employee_password():
+    """Provide the password used by the sample employee fixture."""
+    return TEST_EMPLOYEE_PASSWORD
 
 
 @pytest.fixture(scope="session")
@@ -71,7 +81,7 @@ def sample_employee(db_session, sample_role):
     employee = Employee(
         full_name="Test Employee",
         email="testemployee@example.com",
-        password_hash="fake_hash_for_testing",
+        password_hash=TEST_EMPLOYEE_PASSWORD_HASH,
         id_role=sample_role.id_role,
     )
     db_session.add(employee)

@@ -6,7 +6,6 @@ from sqlalchemy.schema import CreateTable
 import epic_events.models
 from epic_events.database import Base
 
-
 print("USE epic_events;")
 
 for table in Base.metadata.sorted_tables:
