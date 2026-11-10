@@ -3,7 +3,6 @@
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-
 password_hasher = PasswordHasher()
 
 
@@ -20,9 +19,3 @@ def verify_password(hashed_password: str, password: str) -> bool:
         return False
 
     return True
-
-
-def authenticate_user(database, username: str, password: str):
-    user = get_user(database, username)
-    if not user:
-        verify_password(password)

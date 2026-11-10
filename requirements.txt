@@ -9,6 +9,7 @@ packaging==26.3
 pluggy==1.7.0
 pycparser==3.12
 Pygments==2.21.0
+PyJWT==2.15.1
 PyMySQL==1.2.3
 pytest==9.2.0
 SQLAlchemy==2.1.6
