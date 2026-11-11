@@ -6,11 +6,15 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 
+from epic_events.services.validators import validate_id
+
 SECRET_KEY = os.environ["EPIC_EVENTS_JWT_SECRET_KEY"]
 
 
 def create_access_token(id_employee: int) -> str:
     """Create a signed JWT for an authenticated employee."""
+    id_employee = validate_id(id_employee)
+    
     now = datetime.now(UTC)
 
     payload = {
