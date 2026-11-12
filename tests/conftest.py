@@ -9,6 +9,7 @@ from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 
 from epic_events.models import Contract, Customer, Employee, Role
+from epic_events.security import token_storage
 from epic_events.security.passwords import hash_password
 
 TEST_EMPLOYEE_PASSWORD = "TestPassword123!"
@@ -118,3 +119,11 @@ def sample_contract(db_session, sample_customer):
     db_session.flush()
 
     return contract
+
+
+@pytest.fixture
+def mock_token_file(monkeypatch, tmp_path):
+    """Configure a temporary token storage file for tests."""
+    token_file = tmp_path / "token"
+    monkeypatch.setattr(token_storage, "TOKEN_FILE", token_file)
+    return token_file

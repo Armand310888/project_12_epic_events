@@ -1,17 +1,6 @@
 """Unit tests for local authentication token storage."""
 
-import pytest
-
 from epic_events.security import token_storage
-
-
-@pytest.fixture
-def mock_token_file(monkeypatch, tmp_path):
-    """Configure a temporary token storage file for tests."""
-    token_file = tmp_path / "token"
-    monkeypatch.setattr(token_storage, "TOKEN_FILE", token_file)
-    return token_file
-
 
 # Test "save_token"
 
