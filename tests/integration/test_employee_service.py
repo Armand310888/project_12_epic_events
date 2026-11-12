@@ -5,7 +5,12 @@ from sqlalchemy import func, select
 
 from epic_events.models import Employee, Role
 from epic_events.security.passwords import verify_password
-from epic_events.services.employee_service import create_employee
+from epic_events.services.employee_service import (
+    create_employee,
+    get_employee_by_id,
+)
+
+# Test "create_employee"
 
 
 def test_create_employee(db_session, sample_role):
@@ -100,3 +105,13 @@ def test_create_employee_rejects_invalid_password(
             password,
             id_role,
         )
+
+
+# Test "get_employee_by_id"
+
+
+def test_get_employee_by_id(db_session, sample_employee):
+    """Verify that an existing employee can be retrieved by their ID."""
+    employee = get_employee_by_id(db_session, sample_employee.id_employee)
+
+    assert employee is sample_employee
