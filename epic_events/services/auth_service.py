@@ -1,5 +1,6 @@
 """Provide business logic for employee authentication and access management."""
 
+from jwt.exceptions import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from epic_events.security.tokens import (
     create_access_token,
     verify_access_token,
 )
+from epic_events.services.employee_service import get_employee_by_id
 from epic_events.services.validators import validate_user_email
 
 DUMMY_PASSWORD_HASH = hash_password("DummyPassword123!")
@@ -53,6 +55,12 @@ def login_employee(
     password: str,
 ) -> Employee | None:
     """Authenticate an employee and establish a persistent local session."""
+    current_employee = get_current_employee(session)
+    if current_employee:
+        raise AlreadyAuthenticatedError(
+            "Login denied: an active session already exists. "
+            "Please log out first."
+        )
 
     employee = authenticate_employee(
         session,
@@ -67,3 +75,32 @@ def login_employee(
 
     return None
 
+
+def get_current_employee(
+    session: Session,
+) -> Employee | None:
+    """
+    Retrieve the authenticated employee from a valid stored JWT.
+
+    Return None if no token exists. Delete the stored token and return None
+    if it is invalid, expired, or belongs to a missing or inactive employee.
+    """
+    token = load_token()
+
+    if token:
+        try:
+            id_employee = verify_access_token(token)
+            employee = get_employee_by_id(session, id_employee)
+            if employee and employee.is_active:
+                return employee
+            delete_token()
+            return None
+        except InvalidTokenError:
+            delete_token()
+            return None
+
+    return None
+
+
+class AlreadyAuthenticatedError(Exception):
+    """Raised when a login is attempted while a valid session is active."""
