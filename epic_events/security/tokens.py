@@ -1,4 +1,7 @@
-"""Provide secure JWT generation and verification for employee authentication."""
+"""
+Provide secure JWT generation and verification
+for employee authentication.
+"""
 
 import os
 import uuid

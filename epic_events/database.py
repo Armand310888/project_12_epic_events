@@ -28,7 +28,5 @@ if __name__ == "__main__":
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy ORM models."""
 
-    pass
-
 
 session_factory = sessionmaker(bind=engine)

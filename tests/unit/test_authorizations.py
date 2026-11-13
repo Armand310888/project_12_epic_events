@@ -91,4 +91,3 @@ def test_require_general_permission_denies_missing_role():
 
     with pytest.raises(PermissionDeniedError):
         require_general_permission(employee, permission)
-    

@@ -129,7 +129,10 @@ def test_login_employee_rejects_existing_session(
     mock_token_file,
     test_employee_password,
 ):
-    """Verify that login is denied without replacing an active session token."""
+    """
+    Verify that login is denied without
+    replacing an active session token.
+    """
     token = create_access_token(sample_employee.id_employee)
     save_token(token)
 
@@ -209,7 +212,10 @@ def test_get_current_employee_rejects_unknown_employee(
     sample_employee,
     mock_token_file,
 ):
-    """Verify that a JWT referencing a missing employee is rejected and deleted."""
+    """
+    Verify that a JWT referencing a missing employee
+    is rejected and deleted.
+    """
     unknown_id = sample_employee.id_employee + 1_000_000_000
     token = create_access_token(unknown_id)
     save_token(token)
