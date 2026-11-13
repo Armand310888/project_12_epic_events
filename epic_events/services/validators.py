@@ -61,6 +61,11 @@ def validate_password(password: str) -> str:
         raise ValueError(
             "Password must contain at least one uppercase letter."
         )
+    
+    if not any(char.islower() for char in password):
+        raise ValueError(
+            "Password must contain at least one lowercase letter."
+        )
 
     if not any(
         not char.isalnum() and not char.isspace()

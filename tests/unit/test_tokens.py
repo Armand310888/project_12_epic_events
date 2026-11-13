@@ -65,10 +65,17 @@ def test_create_access_token_unique_jti(mock_jwt_secret):
     assert payload_token_1["jti"] != payload_token_2["jti"]
 
 
-def test_create_access_token_rejects_invalid_id():
+@pytest.mark.parametrize(
+    "id_employee",
+    [
+        "wrongid",
+        None,
+        12.5,
+        []
+    ],
+)
+def test_create_access_token_rejects_invalid_id(id_employee):
     """Verify that token generation rejects an invalid employee ID."""
-    id_employee = "wrongid"
-
     with pytest.raises(TypeError):
         tokens.create_access_token(id_employee)
 
@@ -122,9 +129,18 @@ def test_verify_access_token_invalid_signature(mock_jwt_secret):
         tokens.verify_access_token(token)
 
 
-def test_verify_access_token_invalid_employee_id(mock_jwt_secret):
+@pytest.mark.parametrize(
+    "id_employee",
+    [
+        "wrong-id",
+        "12.5",
+        "",
+        "-1",
+        "0",
+    ],
+)
+def test_verify_access_token_invalid_employee_id(mock_jwt_secret, id_employee):
     """Verify that a JWT containing an invalid employee ID is rejected."""
-    id_employee = "wrong-id"
     now = datetime.now(UTC)
 
     payload = {
@@ -166,17 +182,25 @@ def test_verify_access_token_expired(mock_jwt_secret):
         tokens.verify_access_token(token)
 
 
-def test_verify_access_token_missing_required_claim(mock_jwt_secret):
+@pytest.mark.parametrize(
+    "missing_claim",
+    ["sub", "iat", "exp", "jti"],
+)
+def test_verify_access_token_missing_required_claim(
+    mock_jwt_secret,
+    missing_claim,
+):
     """Verify that a JWT missing a required claim is rejected."""
-
-    id_employee = 12
     now = datetime.now(UTC)
 
     payload = {
-        "sub": str(id_employee),
+        "sub": "12",
         "iat": now,
         "exp": now + timedelta(hours=8),
+        "jti": str(uuid.uuid4()),
     }
+
+    del payload[missing_claim]
 
     token = jwt.encode(
         payload,

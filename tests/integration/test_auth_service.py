@@ -32,29 +32,30 @@ def test_authenticate_employee_success(
     assert employee is sample_employee
 
 
-def test_authenticate_employee_unknown_email(
+@pytest.mark.parametrize(
+    "invalid_field",
+    ["email", "password"],
+    ids=["unknown_email", "wrong_password"],
+)
+def test_authenticate_employee_invalid_credentials(
     db_session,
+    sample_employee,
     test_employee_password,
+    invalid_field,
 ):
-    """Verify that authentication fails when the email does not exist."""
+    """Verify that invalid credentials prevent authentication."""
+    email = sample_employee.email
+    password = test_employee_password
+
+    if invalid_field == "email":
+        email = "wrongemail@example.com"
+    else:
+        password = "wrongpassword"
+
     employee = authenticate_employee(
         db_session,
-        "wrongemail@example.com",
-        test_employee_password,
-    )
-
-    assert employee is None
-
-
-def test_authenticate_employee_wrong_password(
-    db_session,
-    sample_employee
-):
-    """Verify that authentication fails with an incorrect password."""
-    employee = authenticate_employee(
-        db_session,
-        sample_employee.email,
-        "wrongpassword"
+        email,
+        password,
     )
 
     assert employee is None
@@ -146,7 +147,7 @@ def test_login_employee_rejects_existing_session(
     assert mock_token_file.read_text() == token
 
 
-# Test "get_current_emploee"
+# Test "get_current_employee"
 
 
 def test_get_current_employee_success(

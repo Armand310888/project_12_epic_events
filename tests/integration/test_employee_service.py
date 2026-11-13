@@ -84,26 +84,32 @@ def test_create_employee_rejects_duplicate_email(
         )
 
 
+@pytest.mark.parametrize(
+    "password, expected_error",
+    [
+        ("Wrongpassword!", "at least one digit"),
+        ("short1!", "at least 10"),
+        ("lowercase123!", "at least one uppercase"),
+        ("UPPERCASE123!", "at least one lowercase"),
+    ],
+)
 def test_create_employee_rejects_invalid_password(
     db_session,
     sample_role,
+    password,
+    expected_error,
 ):
     """
     Verify that employee creation rejects a
     password violating the security policy.
     """
-    full_name = "Test Employee"
-    email = "testemployee@example.com"
-    password = "Wrongpassword!"
-    id_role = sample_role.id_role
-
-    with pytest.raises(ValueError, match="at least one digit"):
+    with pytest.raises(ValueError, match=expected_error):
         create_employee(
             db_session,
-            full_name,
-            email,
+            "Test Employee",
+            "testemployee@example.com",
             password,
-            id_role,
+            sample_role.id_role,
         )
 
 

@@ -79,16 +79,24 @@ def test_employee_requires_existing_role(db_session):
     assert "id_role" in exception_info.value.orig.args[1]
 
 
+@pytest.mark.parametrize(
+    "total_amount, outstanding_balance",
+    [
+        (Decimal("1000.00"), Decimal("1000.01")),
+        (Decimal("1000.00"), Decimal("2000.00")),
+    ],
+    ids=["just_above_total", "double_total"],
+)
 def test_contract_balance_cannot_exceed_total(
     db_session,
     sample_customer,
+    total_amount,
+    outstanding_balance
 ):
     """Verify that outstanding balance cannot exceed contract total."""
-    contract_amount = Decimal("1000.00")
-
     contract = Contract(
-        total_amount=contract_amount,
-        outstanding_balance=contract_amount * 2,
+        total_amount=total_amount,
+        outstanding_balance=outstanding_balance,
         id_customer=sample_customer.id_customer,
     )
 
@@ -127,13 +135,26 @@ def test_event_end_date_must_follow_start_date(db_session, sample_contract):
     )
 
 
-def test_contract_balance_can_equal_total(db_session, sample_customer):
+@pytest.mark.parametrize(
+    "outstanding_balance",
+    [
+        Decimal("0.00"),
+        Decimal("999.99"),
+        Decimal("1000.00"),
+    ],
+    ids=["fully_paid", "just_below_total", "equal_to_total"],
+)
+def test_contract_balance_can_equal_total(
+    db_session,
+    sample_customer,
+    outstanding_balance,
+):
     """Verify that outstanding balance may equal contract total."""
     contract_amount = Decimal("1000.00")
 
     contract = Contract(
         total_amount=contract_amount,
-        outstanding_balance=contract_amount,
+        outstanding_balance=outstanding_balance,
         id_customer=sample_customer.id_customer,
     )
 
@@ -148,4 +169,4 @@ def test_contract_balance_can_equal_total(db_session, sample_customer):
     assert result is not None
     assert result.id_contract == contract.id_contract
     assert result.total_amount == contract_amount
-    assert result.outstanding_balance == contract_amount
+    assert result.outstanding_balance == outstanding_balance
