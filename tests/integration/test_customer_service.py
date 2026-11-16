@@ -43,8 +43,7 @@ def test_get_all_customers_success(
     db_session.add_all([customer_2, customer_3])
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     customers = get_all_customers(db_session)
 
@@ -65,8 +64,7 @@ def test_get_all_customers_empty_database(
     sample_employee.role.name = "sales"
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     customers = get_all_customers(db_session)
 
@@ -90,8 +88,7 @@ def test_get_all_customers_denies_inactive_employee(
     sample_employee,
 ):
     """Verify that inactive employees cannot retrieve customers."""
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     sample_employee.is_active = False
 
@@ -112,8 +109,7 @@ def test_get_all_customers_denies_unknown_role(
     sample_employee.id_role = unknown_role.id_role
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     with pytest.raises(PermissionDeniedError):
         get_all_customers(db_session)
@@ -132,8 +128,7 @@ def test_get_customer_by_id_success(
     sample_employee.role.name = "sales"
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     customer = get_customer_by_id(
         db_session,
@@ -153,8 +148,7 @@ def test_get_customer_by_id_unknown_id(
     sample_employee.role.name = "sales"
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     unknown_id = sample_customer.id_customer + 1_000_000_000
 
@@ -184,10 +178,9 @@ def test_get_customer_by_id_rejects_invalid_type(
     sample_employee.role.name = "sales"
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
-    with pytest.raises(TypeError, match="Customer ID must be an integer"):
+    with pytest.raises(TypeError, match="ID must be a positive integer"):
         get_customer_by_id(db_session, customer_id)
 
 
@@ -206,10 +199,9 @@ def test_get_customer_by_id_rejects_nonpositive_id(
     sample_employee.role.name = "sales"
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
-    with pytest.raises(ValueError, match="positive integer"):
+    with pytest.raises(ValueError, match="ID must be a positive integer"):
         get_customer_by_id(db_session, customer_id)
 
 
@@ -236,8 +228,7 @@ def test_get_customer_by_id_denies_inactive_employee(
     sample_employee.is_active = False
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     with pytest.raises(PermissionDeniedError):
         get_customer_by_id(db_session, sample_customer.id_customer)
@@ -250,8 +241,7 @@ def test_get_customer_by_id_denies_unknown_role(
     sample_customer,
 ):
     """Verify that employees with unknown roles cannot retrieve customers."""
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     # sample_employee has the unknown role "Test Role".
     with pytest.raises(PermissionDeniedError):
@@ -269,8 +259,7 @@ def test_get_customer_by_id_returns_inactive_customer(
     sample_customer.is_active = False
     db_session.flush()
 
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     customer = get_customer_by_id(
         db_session,

@@ -12,6 +12,7 @@ from epic_events.security.authorizations import (
     require_general_permission,
 )
 from epic_events.services.auth_service import get_current_employee
+from epic_events.services.validators import validate_id
 
 
 def get_all_customers(session: Session) -> list[Customer]:
@@ -29,8 +30,7 @@ def get_all_customers(session: Session) -> list[Customer]:
     require_general_permission(employee, Permission.CUSTOMER_READ)
 
     statement = select(Customer)
-    customers = list(session.scalars(statement).all())
-    return customers
+    return list(session.scalars(statement).all())
 
 
 def get_customer_by_id(
@@ -49,10 +49,6 @@ def get_customer_by_id(
 
     require_general_permission(employee, Permission.CUSTOMER_READ)
 
-    if type(customer_id) is not int:
-        raise TypeError("Customer ID must be an integer.")
-
-    if customer_id <= 0:
-        raise ValueError("Customer ID must be a positive integer.")
+    customer_id = validate_id(customer_id)
 
     return session.get(Customer, customer_id)
