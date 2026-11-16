@@ -197,8 +197,7 @@ def test_get_current_employee_rejects_inactive_employee(
     mock_token_file,
 ):
     """Verify that an inactive employee cannot resume a stored session."""
-    token = create_access_token(sample_employee.id_employee)
-    save_token(token)
+    save_token(create_access_token(sample_employee.id_employee))
 
     sample_employee.is_active = False
 
