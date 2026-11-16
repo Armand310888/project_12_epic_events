@@ -1,6 +1,7 @@
 """Configure shared fixtures for database integration tests."""
 
 import os
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
@@ -8,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 
-from epic_events.models import Contract, Customer, Employee, Role
+from epic_events.models import Contract, Customer, Employee, Event, Role
 from epic_events.security import token_storage
 from epic_events.security.passwords import hash_password
 
@@ -119,6 +120,26 @@ def sample_contract(db_session, sample_customer):
     db_session.flush()
 
     return contract
+
+
+@pytest.fixture
+def sample_event(db_session, sample_contract):
+    """Create and persist a sample event linked to a contract."""
+    event = Event(
+        name="Sample Event",
+        start_datetime=datetime(2027, 1, 10, 10, 0),
+        end_datetime=datetime(2027, 1, 10, 18, 0),
+        location="Paris",
+        attendees_count=50,
+        notes="Sample event",
+        id_contract=sample_contract.id_contract,
+        id_support_employee=None,
+    )
+
+    db_session.add(event)
+    db_session.flush()
+
+    return event
 
 
 @pytest.fixture
