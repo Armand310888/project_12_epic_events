@@ -110,4 +110,3 @@ def get_unpaid_contracts(session: Session) -> list[Contract]:
 
     statement = select(Contract).where(Contract.outstanding_balance > 0)
     return list(session.scalars(statement).all())
-
