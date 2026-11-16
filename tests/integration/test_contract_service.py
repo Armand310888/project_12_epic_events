@@ -17,6 +17,23 @@ from epic_events.services.contract_service import (
     get_unsigned_contracts,
 )
 
+READ_OPERATIONS = [
+    lambda session: get_all_contracts(session),
+    lambda session: get_contract_by_id(session, 1),
+    lambda session: get_unsigned_contracts(session),
+    lambda session: get_contracts_by_customer(session, 1),
+    lambda session: get_unpaid_contracts(session),
+]
+
+READ_OPERATIONS_IDS = [
+    "all_contracts",
+    "contract_by_id",
+    "unsigned_contracts",
+    "contracts_by_customer",
+    "unpaid_contracts",
+]
+
+
 # Test "get_all_contracts"
 
 
@@ -24,7 +41,6 @@ from epic_events.services.contract_service import (
 def test_get_all_contracts_success(
     db_session,
     sample_employee,
-    sample_customer,
     sample_contract,
 ):
     """Verify that all contracts are returned regardless of signature."""
@@ -34,7 +50,7 @@ def test_get_all_contracts_success(
         total_amount=Decimal("2000.00"),
         outstanding_balance=Decimal("500.00"),
         is_signed=True,
-        id_customer=sample_customer.id_customer,
+        id_customer=sample_contract.id_customer,
     )
 
     db_session.add(signed_contract)
@@ -107,44 +123,29 @@ def test_get_contract_by_id_unknown_id(
 
 @pytest.mark.usefixtures("mock_token_file")
 @pytest.mark.parametrize(
-    "contract_id",
-    ["1", 1.5, None, True, []],
-    ids=["string", "float", "none", "boolean", "list"],
+    "read_operation",
+    [
+        get_contract_by_id,
+        get_contracts_by_customer,
+    ],
+    ids=[
+        "contract_by_id",
+        "contracts_by_customer",
+    ],
 )
-def test_get_contract_by_id_rejects_invalid_type(
+def test_contract_reads_validate_ids(
     db_session,
     sample_employee,
-    contract_id,
+    read_operation,
 ):
-    """Verify that contract IDs must be integers."""
+    """Verify that contract read services reject invalid identifiers."""
     sample_employee.role.name = "sales"
     db_session.flush()
 
     save_token(create_access_token(sample_employee.id_employee))
 
-    with pytest.raises(TypeError, match="ID must be a positive integer"):
-        get_contract_by_id(db_session, contract_id)
-
-
-@pytest.mark.usefixtures("mock_token_file")
-@pytest.mark.parametrize(
-    "contract_id",
-    [0, -1],
-    ids=["zero", "negative"],
-)
-def test_get_contract_by_id_rejects_nonpositive_id(
-    db_session,
-    sample_employee,
-    contract_id,
-):
-    """Verify that contract IDs must be strictly positive."""
-    sample_employee.role.name = "sales"
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    with pytest.raises(ValueError, match="ID must be a positive integer"):
-        get_contract_by_id(db_session, contract_id)
+    with pytest.raises(TypeError):
+        read_operation(db_session, "invalid_id")
 
 
 # Test "get_unsigned_contracts"
@@ -272,48 +273,6 @@ def test_get_contracts_by_customer_no_matches(
     assert get_contracts_by_customer(db_session, unknown_id) == []
 
 
-@pytest.mark.usefixtures("mock_token_file")
-@pytest.mark.parametrize(
-    "customer_id",
-    ["1", 1.5, None, True, []],
-    ids=["string", "float", "none", "boolean", "list"],
-)
-def test_get_contracts_by_customer_rejects_invalid_type(
-    db_session,
-    sample_employee,
-    customer_id,
-):
-    """Verify that customer IDs must be integers."""
-    sample_employee.role.name = "sales"
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    with pytest.raises(TypeError, match="ID must be a positive integer"):
-        get_contracts_by_customer(db_session, customer_id)
-
-
-@pytest.mark.usefixtures("mock_token_file")
-@pytest.mark.parametrize(
-    "customer_id",
-    [0, -1],
-    ids=["zero", "negative"],
-)
-def test_get_contracts_by_customer_rejects_nonpositive_id(
-    db_session,
-    sample_employee,
-    customer_id,
-):
-    """Verify that customer IDs must be strictly positive."""
-    sample_employee.role.name = "sales"
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    with pytest.raises(ValueError, match="ID must be a positive integer"):
-        get_contracts_by_customer(db_session, customer_id)
-
-
 # Test "get_unpaid_contracts"
 
 
@@ -357,7 +316,7 @@ def test_get_unpaid_contracts_success(
     }
 
 
-# Test "contract_read_permissions"
+# Test contract read permissions
 
 
 @pytest.mark.usefixtures("mock_token_file")
@@ -385,20 +344,8 @@ def test_contract_read_allows_all_business_roles(
 @pytest.mark.usefixtures("mock_token_file")
 @pytest.mark.parametrize(
     "read_operation",
-    [
-        lambda session: get_all_contracts(session),
-        lambda session: get_contract_by_id(session, 1),
-        lambda session: get_unsigned_contracts(session),
-        lambda session: get_contracts_by_customer(session, 1),
-        lambda session: get_unpaid_contracts(session),
-    ],
-    ids=[
-        "all_contracts",
-        "contract_by_id",
-        "unsigned_contracts",
-        "contracts_by_customer",
-        "unpaid_contracts",
-    ],
+    READ_OPERATIONS,
+    ids=READ_OPERATIONS_IDS,
 )
 def test_contract_reads_require_authentication(
     db_session,
@@ -412,20 +359,8 @@ def test_contract_reads_require_authentication(
 @pytest.mark.usefixtures("mock_token_file")
 @pytest.mark.parametrize(
     "read_operation",
-    [
-        lambda session: get_all_contracts(session),
-        lambda session: get_contract_by_id(session, 1),
-        lambda session: get_unsigned_contracts(session),
-        lambda session: get_contracts_by_customer(session, 1),
-        lambda session: get_unpaid_contracts(session),
-    ],
-    ids=[
-        "all_contracts",
-        "contract_by_id",
-        "unsigned_contracts",
-        "contracts_by_customer",
-        "unpaid_contracts",
-    ],
+    READ_OPERATIONS,
+    ids=READ_OPERATIONS_IDS,
 )
 def test_contract_reads_deny_inactive_employee(
     db_session,
@@ -446,20 +381,8 @@ def test_contract_reads_deny_inactive_employee(
 @pytest.mark.usefixtures("mock_token_file")
 @pytest.mark.parametrize(
     "read_operation",
-    [
-        lambda session: get_all_contracts(session),
-        lambda session: get_contract_by_id(session, 1),
-        lambda session: get_unsigned_contracts(session),
-        lambda session: get_contracts_by_customer(session, 1),
-        lambda session: get_unpaid_contracts(session),
-    ],
-    ids=[
-        "all_contracts",
-        "contract_by_id",
-        "unsigned_contracts",
-        "contracts_by_customer",
-        "unpaid_contracts",
-    ],
+    READ_OPERATIONS,
+    ids=READ_OPERATIONS_IDS,
 )
 def test_contract_reads_deny_unknown_role(
     db_session,

@@ -90,6 +90,25 @@ def test_validate_password_rejects_missing_uppercase():
         validate_password("securepassword123!")
 
 
+def test_validate_password_rejects_missing_lowercase():
+    """Verify that a password without a lowercase letter is rejected."""
+    with pytest.raises(ValueError):
+        validate_password("SECUREPASSWORD123!")
+
+
+def test_validate_password_rejects_invalid_type():
+    """Verify that a non-string password is rejected."""
+    with pytest.raises(TypeError):
+        validate_password(123)
+
+
+def test_validate_password_accepts_minimum_length():
+    """Verify that a password of exactly 10 characters is accepted."""
+    password = "Abcdef12!?"
+
+    assert validate_password(password) == password
+
+
 # ID validation
 
 
@@ -122,3 +141,9 @@ def test_validate_id_rejects_boolean():
     """Verify that a boolean identifier is rejected."""
     with pytest.raises(TypeError):
         validate_id(True)
+
+
+def test_validate_id_rejects_float():
+    """Verify that a floating-point identifier is rejected."""
+    with pytest.raises(TypeError):
+        validate_id(12.0)

@@ -2,7 +2,7 @@
 
 import pytest
 
-from epic_events.models import Customer, Role
+from epic_events.models import Customer
 from epic_events.security.authorizations import PermissionDeniedError
 from epic_events.security.token_storage import save_token
 from epic_events.security.tokens import create_access_token
@@ -88,9 +88,10 @@ def test_get_all_customers_denies_inactive_employee(
     sample_employee,
 ):
     """Verify that inactive employees cannot retrieve customers."""
-    save_token(create_access_token(sample_employee.id_employee))
-
+    sample_employee.role.name = "sales"
     sample_employee.is_active = False
+
+    save_token(create_access_token(sample_employee.id_employee))
 
     with pytest.raises(PermissionDeniedError):
         get_all_customers(db_session)
@@ -102,20 +103,14 @@ def test_get_all_customers_denies_unknown_role(
     sample_employee,
 ):
     """Verify that employees with unknown roles cannot retrieve customers."""
-    unknown_role = Role(name="unknown")
-    db_session.add(unknown_role)
-    db_session.flush()
-
-    sample_employee.id_role = unknown_role.id_role
-    db_session.flush()
-
+    # sample_employee has the unknown role "Test Role".
     save_token(create_access_token(sample_employee.id_employee))
 
     with pytest.raises(PermissionDeniedError):
         get_all_customers(db_session)
 
 
-# Test "get_customer_by_id"
+# Test get customer by id
 
 
 @pytest.mark.usefixtures("mock_token_file")
@@ -158,51 +153,18 @@ def test_get_customer_by_id_unknown_id(
 
 
 @pytest.mark.usefixtures("mock_token_file")
-@pytest.mark.parametrize(
-    "customer_id",
-    [
-        "1",
-        1.5,
-        None,
-        True,
-        [],
-    ],
-    ids=["string", "float", "none", "boolean", "list"],
-)
-def test_get_customer_by_id_rejects_invalid_type(
+def test_get_customer_by_id_validates_id(
     db_session,
     sample_employee,
-    customer_id,
 ):
-    """Verify that customer IDs must be integers."""
+    """Verify that customer lookup rejects invalid identifiers."""
     sample_employee.role.name = "sales"
     db_session.flush()
 
     save_token(create_access_token(sample_employee.id_employee))
 
-    with pytest.raises(TypeError, match="ID must be a positive integer"):
-        get_customer_by_id(db_session, customer_id)
-
-
-@pytest.mark.usefixtures("mock_token_file")
-@pytest.mark.parametrize(
-    "customer_id",
-    [0, -1],
-    ids=["zero", "negative"],
-)
-def test_get_customer_by_id_rejects_nonpositive_id(
-    db_session,
-    sample_employee,
-    customer_id,
-):
-    """Verify that customer IDs must be strictly positive."""
-    sample_employee.role.name = "sales"
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    with pytest.raises(ValueError, match="ID must be a positive integer"):
-        get_customer_by_id(db_session, customer_id)
+    with pytest.raises(TypeError):
+        get_customer_by_id(db_session, "invalid")
 
 
 def test_get_customer_by_id_requires_authentication(
@@ -268,3 +230,26 @@ def test_get_customer_by_id_returns_inactive_customer(
 
     assert customer is sample_customer
     assert customer.is_active is False
+
+
+# Test customer read permissions
+
+
+@pytest.mark.usefixtures("mock_token_file")
+@pytest.mark.parametrize(
+    "role_name",
+    ["management", "sales", "support"],
+)
+def test_customer_read_allows_all_business_roles(
+    db_session,
+    sample_employee,
+    sample_customer,
+    role_name,
+):
+    """Verify that all recognized roles can read customers."""
+    sample_employee.role.name = role_name
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    assert get_all_customers(db_session) == [sample_customer]

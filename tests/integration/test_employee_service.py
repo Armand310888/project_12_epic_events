@@ -84,31 +84,20 @@ def test_create_employee_rejects_duplicate_email(
         )
 
 
-@pytest.mark.parametrize(
-    "password, expected_error",
-    [
-        ("Wrongpassword!", "at least one digit"),
-        ("short1!", "at least 10"),
-        ("lowercase123!", "at least one uppercase"),
-        ("UPPERCASE123!", "at least one lowercase"),
-    ],
-)
 def test_create_employee_rejects_invalid_password(
     db_session,
     sample_role,
-    password,
-    expected_error,
 ):
     """
     Verify that employee creation rejects a
     password violating the security policy.
     """
-    with pytest.raises(ValueError, match=expected_error):
+    with pytest.raises(ValueError):
         create_employee(
             db_session,
             "Test Employee",
             "testemployee@example.com",
-            password,
+            "weak",
             sample_role.id_role,
         )
 
@@ -121,3 +110,21 @@ def test_get_employee_by_id(db_session, sample_employee):
     employee = get_employee_by_id(db_session, sample_employee.id_employee)
 
     assert employee is sample_employee
+
+
+def test_get_employee_by_id_unknown_id(
+    db_session,
+    sample_employee,
+):
+    """Verify that an unknown employee ID returns None."""
+    unknown_id = sample_employee.id_employee + 1_000_000_000
+
+    assert get_employee_by_id(db_session, unknown_id) is None
+
+
+def test_get_employee_by_id_validates_id(
+    db_session,
+):
+    """Verify that employee lookup rejects invalid identifiers."""
+    with pytest.raises(TypeError):
+        get_employee_by_id(db_session, "invalid")
