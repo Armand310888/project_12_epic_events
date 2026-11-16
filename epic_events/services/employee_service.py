@@ -4,7 +4,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from epic_events.models import Employee, Role
+from epic_events.security.authorizations import (
+    Permission,
+    require_general_permission,
+)
 from epic_events.security.passwords import hash_password
+from epic_events.services.auth_service import get_current_employee
 from epic_events.services.validators import (
     validate_full_name,
     validate_id,
@@ -21,13 +26,15 @@ def create_employee(
         id_role: int,
 ) -> Employee:
     """Create an employee with a securely hashed password."""
+    employee = get_current_employee(session)
+    require_general_permission(employee, Permission.EMPLOYEE_CREATE)
+
     full_name = validate_full_name(full_name)
     email = validate_user_email(email)
     password = validate_password(password)
     id_role = validate_id(id_role)
 
-    statement = select(Role).where(Role.id_role == id_role)
-    if session.scalar(statement) is None:
+    if session.get(Role, id_role) is None:
         raise ValueError(f"Role with ID {id_role} does not exist.")
 
     statement = select(Employee).where(Employee.email == email)

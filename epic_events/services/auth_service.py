@@ -15,7 +15,6 @@ from epic_events.security.tokens import (
     create_access_token,
     verify_access_token,
 )
-from epic_events.services.employee_service import get_employee_by_id
 from epic_events.services.validators import validate_user_email
 
 DUMMY_PASSWORD_HASH = hash_password("DummyPassword123!")
@@ -90,7 +89,7 @@ def get_current_employee(
     if token:
         try:
             id_employee = verify_access_token(token)
-            employee = get_employee_by_id(session, id_employee)
+            employee = session.get(Employee, id_employee)
             if employee and employee.is_active:
                 return employee
             delete_token()
