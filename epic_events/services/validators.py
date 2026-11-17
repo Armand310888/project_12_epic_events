@@ -1,22 +1,13 @@
 """Provide reusable input validation and normalization functions."""
 
+import phonenumbers
 from email_validator import EmailNotValidError, validate_email
+from phonenumbers import NumberParseException
 
 
 def validate_full_name(full_name: str) -> str:
     """Validate and normalize a full name."""
-    if not isinstance(full_name, str):
-        raise TypeError("Full name must be a string.")
-
-    full_name = full_name.strip()
-
-    if not full_name:
-        raise ValueError("Full name cannot be empty.")
-
-    if len(full_name) > 100:
-        raise ValueError("Full name must not exceed 100 characters.")
-
-    return full_name
+    return validate_string_field(full_name, "Full name", max_length=100)
 
 
 def validate_user_email(email: str) -> str:
@@ -90,3 +81,54 @@ def validate_id(identifier: int) -> int:
         raise ValueError("ID must be a positive integer.")
 
     return identifier
+
+
+def validate_phone_number(
+    phone_number: str,
+    country_code: str = "FR",
+) -> str:
+    """Validate and normalize a phone number."""
+    if not isinstance(phone_number, str):
+        raise TypeError("Phone number must be a string.")
+
+    phone_number = phone_number.strip()
+
+    try:
+        parsed_phone_number = phonenumbers.parse(phone_number, country_code)
+    except NumberParseException as error:
+        raise ValueError("Invalid phone number.") from error
+
+    if not phonenumbers.is_valid_number(parsed_phone_number):
+        raise ValueError("Invalid phone number.")
+
+    return phonenumbers.format_number(
+        parsed_phone_number,
+        phonenumbers.PhoneNumberFormat.E164,
+    )
+
+
+def validate_company_name(company_name: str) -> str:
+    """Validate and normalize a company name"""
+    return validate_string_field(company_name, "Company name", max_length=250)
+
+
+def validate_string_field(
+    value: str,
+    field_name: str,
+    max_length: int | None = None,
+) -> str:
+    """Validate and normalize a non-empty string field."""
+    if not isinstance(value, str):
+        raise TypeError(f"{field_name} must be a string.")
+
+    value = value.strip()
+
+    if not value:
+        raise ValueError(f"{field_name} cannot be empty.")
+
+    if max_length is not None and len(value) > max_length:
+        raise ValueError(
+            f"{field_name} cannot exceed {max_length} characters."
+        )
+
+    return value
