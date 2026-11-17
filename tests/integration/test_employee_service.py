@@ -3,13 +3,14 @@
 import pytest
 from sqlalchemy import func, select
 
-from epic_events.models import Employee, Role
+from epic_events.models import Customer, Employee, Role
 from epic_events.security.authorizations import PermissionDeniedError
 from epic_events.security.passwords import hash_password, verify_password
 from epic_events.security.token_storage import save_token
 from epic_events.security.tokens import create_access_token
 from epic_events.services.employee_service import (
     create_employee,
+    delete_employee,
     get_employee_by_id,
     update_employee,
 )
@@ -545,3 +546,143 @@ def test_update_employee_denies_unknown_role(
             target_employee.id_employee,
             full_name="New Name",
         )
+
+
+# Test "delete_employee"
+
+
+def test_delete_employee_success(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that an employee without dependencies can be deleted."""
+    employee_id = target_employee.id_employee
+
+    delete_employee(db_session, employee_id)
+    db_session.commit()
+
+    assert db_session.get(Employee, employee_id) is None
+
+
+def test_delete_employee_unknown_id(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that deleting an unknown employee raises ValueError."""
+    unknown_id = target_employee.id_employee + 1_000_000_000
+
+    with pytest.raises(ValueError, match="does not exist"):
+        delete_employee(db_session, unknown_id)
+
+
+def test_delete_employee_validates_id(
+    db_session,
+    authenticated_manager,
+):
+    """Verify that employee deletion rejects invalid identifiers."""
+    with pytest.raises(TypeError):
+        delete_employee(db_session, "invalid")
+
+
+def test_delete_employee_rejects_associated_customer(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that an employee with assigned customers cannot be deleted."""
+    customer = Customer(
+        full_name="Associated Customer",
+        email="associated.customer@example.com",
+        phone_number="0102030405",
+        id_sales_employee=target_employee.id_employee,
+        is_active=True,
+    )
+    db_session.add(customer)
+    db_session.flush()
+
+    with pytest.raises(ValueError, match="associated customers"):
+        delete_employee(db_session, target_employee.id_employee)
+
+
+def test_delete_employee_rejects_assigned_event(
+    db_session,
+    authenticated_manager,
+    target_employee,
+    sample_event,
+):
+    """Verify that an employee assigned to an event cannot be deleted."""
+    sample_event.id_support_employee = target_employee.id_employee
+    db_session.flush()
+
+    with pytest.raises(ValueError, match="associated events"):
+        delete_employee(db_session, target_employee.id_employee)
+
+
+def test_delete_employee_requires_authentication(
+    db_session,
+    sample_employee,
+    target_employee,
+    mock_token_file,
+):
+    """Verify that deleting an employee requires authentication."""
+    sample_employee.role.name = "management"
+    db_session.flush()
+
+    assert not mock_token_file.exists()
+
+    with pytest.raises(PermissionDeniedError):
+        delete_employee(db_session, target_employee.id_employee)
+
+
+@pytest.mark.usefixtures("mock_token_file")
+@pytest.mark.parametrize(
+    "role_name",
+    ["sales", "support"],
+)
+def test_delete_employee_denies_unauthorized_roles(
+    db_session,
+    sample_employee,
+    target_employee,
+    role_name,
+):
+    """Verify that sales and support employees cannot delete accounts."""
+    sample_employee.role.name = role_name
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        delete_employee(db_session, target_employee.id_employee)
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_delete_employee_denies_inactive_manager(
+    db_session,
+    sample_employee,
+    target_employee,
+):
+    """Verify that inactive managers cannot delete employee accounts."""
+    sample_employee.role.name = "management"
+    sample_employee.is_active = False
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        delete_employee(db_session, target_employee.id_employee)
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_delete_employee_denies_unknown_role(
+    db_session,
+    sample_employee,
+    target_employee,
+):
+    """Verify that unknown roles cannot delete employee accounts."""
+    # sample_employee has the unknown role "Test Role".
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        delete_employee(db_session, target_employee.id_employee)

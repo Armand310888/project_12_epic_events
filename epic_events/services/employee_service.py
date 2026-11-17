@@ -133,6 +133,45 @@ def update_employee(
     return employee
 
 
+def delete_employee(
+    session: Session,
+    employee_id: int,
+) -> None:
+    """
+    Delete an employee account.
+
+    Require an authenticated employee with the EMPLOYEE_DELETE permission.
+    Retrieve the target employee and ensure that no customers or events
+    are associated with the account.
+
+    Mark the employee for deletion without committing the transaction.
+
+    Raise PermissionDeniedError if the current employee is unauthorized.
+    Raise ValueError if the target employee does not exist or has
+    associated customers or events.
+    Raise TypeError or ValueError if the employee ID is invalid.
+    """
+    current_employee = get_current_employee(session)
+    require_general_permission(current_employee, Permission.EMPLOYEE_DELETE)
+
+    employee = get_employee_by_id(session, employee_id)
+
+    if employee is None:
+        raise ValueError(f"Employee with ID {employee_id} does not exist.")   
+
+    if employee.customers:
+        raise ValueError(
+            "Cannot delete an employee with associated customers."
+        )
+
+    if employee.events:
+        raise ValueError(
+            "Cannot delete an employee with associated events."
+        )
+
+    session.delete(employee)
+
+
 def get_employee_by_id(
         session: Session,
         id_employee: int,
