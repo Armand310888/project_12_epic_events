@@ -26,8 +26,8 @@ def create_employee(
         id_role: int,
 ) -> Employee:
     """Create an employee with a securely hashed password."""
-    employee = get_current_employee(session)
-    require_general_permission(employee, Permission.EMPLOYEE_CREATE)
+    current_employee = get_current_employee(session)
+    require_general_permission(current_employee, Permission.EMPLOYEE_CREATE)
 
     full_name = validate_full_name(full_name)
     email = validate_user_email(email)
@@ -51,6 +51,84 @@ def create_employee(
     )
 
     session.add(employee)
+
+    return employee
+
+
+def update_employee(
+    session: Session,
+    employee_id: int,
+    full_name: str | None = None,
+    email: str | None = None,
+    password: str | None = None,
+    id_role: int | None = None,
+    is_active: bool | None = None,
+) -> Employee:
+    """
+    Update an employee's account information.
+
+    Require an authenticated employee with the EMPLOYEE_UPDATE permission.
+    Retrieve the target employee and update only the provided fields,
+    including the account's active status.
+
+    Validate all provided values before applying changes.
+    Ensure that the email is not used by another employee and that
+    the assigned role exists. Hash the password if it is changed.
+
+    Return the updated employee without committing the transaction.
+
+    Raise PermissionDeniedError if the current employee is unauthorized.
+    Raise ValueError if the target employee or assigned role does not exist,
+    if the email is already used, or if a provided value is invalid.
+    Raise TypeError if a provided value has an invalid type.
+    """
+    current_employee = get_current_employee(session)
+    require_general_permission(current_employee, Permission.EMPLOYEE_UPDATE)
+
+    employee = get_employee_by_id(session, employee_id)
+
+    if employee is None:
+        raise ValueError(f"Employee with ID {employee_id} does not exist.")
+
+    if full_name is not None:
+        full_name = validate_full_name(full_name)
+
+    if email is not None:
+        email = validate_user_email(email)
+        statement = select(Employee).where(
+            Employee.email == email,
+            Employee.id_employee != employee_id,
+        )
+
+        if session.scalar(statement) is not None:
+            raise ValueError("An employee with this email already exists.")
+
+    if password is not None:
+        password = validate_password(password)
+
+    if id_role is not None:
+        id_role = validate_id(id_role)
+        if session.get(Role, id_role) is None:
+            raise ValueError(f"Role with ID {id_role} does not exist.")
+
+    if is_active is not None and not isinstance(is_active, bool):
+        raise TypeError("'is_active' value must be a boolean (True or False).")
+
+    if full_name is not None:
+        employee.full_name = full_name
+
+    if email is not None:
+        employee.email = email
+
+    if password is not None:
+        hashed_password = hash_password(password)
+        employee.password_hash = hashed_password
+
+    if id_role is not None:
+        employee.id_role = id_role
+
+    if is_active is not None:
+        employee.is_active = is_active
 
     return employee
 

@@ -5,13 +5,42 @@ from sqlalchemy import func, select
 
 from epic_events.models import Employee, Role
 from epic_events.security.authorizations import PermissionDeniedError
-from epic_events.security.passwords import verify_password
+from epic_events.security.passwords import hash_password, verify_password
 from epic_events.security.token_storage import save_token
 from epic_events.security.tokens import create_access_token
 from epic_events.services.employee_service import (
     create_employee,
     get_employee_by_id,
+    update_employee,
 )
+
+
+@pytest.fixture
+def authenticated_manager(db_session, sample_employee, mock_token_file):
+    """Authenticate an active management employee."""
+    sample_employee.role.name = "management"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    return sample_employee
+
+
+@pytest.fixture
+def target_employee(db_session, sample_employee):
+    """Create an employee whose account can be updated."""
+    employee = Employee(
+        full_name="Original Employee",
+        email="original.employee@example.com",
+        password_hash=hash_password("OriginalPassword1!"),
+        id_role=sample_employee.id_role,
+        is_active=True,
+    )
+
+    db_session.add(employee)
+    db_session.flush()
+
+    return employee
 
 # Test "create_employee"
 
@@ -182,3 +211,337 @@ def test_get_employee_by_id_validates_id(
     """Verify that employee lookup rejects invalid identifiers."""
     with pytest.raises(TypeError):
         get_employee_by_id(db_session, "invalid")
+
+
+# Test "update_employee"
+
+
+def test_update_employee_success(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that all employee fields can be updated and persisted."""
+    new_role = Role(name="support")
+    db_session.add(new_role)
+    db_session.flush()
+
+    updated = update_employee(
+        db_session,
+        target_employee.id_employee,
+        full_name=" Updated Employee ",
+        email=" updated.employee@example.com ",
+        password="NewSecurePassword1!",
+        id_role=new_role.id_role,
+        is_active=False,
+    )
+
+    db_session.commit()
+
+    employee = db_session.get(Employee, target_employee.id_employee)
+
+    assert updated is target_employee
+    assert employee.full_name == "Updated Employee"
+    assert employee.email == "updated.employee@example.com"
+    assert employee.password_hash != "NewSecurePassword1!"
+    assert verify_password(employee.password_hash, "NewSecurePassword1!")
+    assert employee.id_role == new_role.id_role
+    assert employee.is_active is False
+
+
+def test_update_employee_partial_update(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that updating one field preserves all other fields."""
+    original_email = target_employee.email
+    original_hash = target_employee.password_hash
+    original_role_id = target_employee.id_role
+    original_status = target_employee.is_active
+
+    updated = update_employee(
+        db_session,
+        target_employee.id_employee,
+        full_name="New Name",
+    )
+
+    assert updated.full_name == "New Name"
+    assert updated.email == original_email
+    assert updated.password_hash == original_hash
+    assert updated.id_role == original_role_id
+    assert updated.is_active == original_status
+
+
+def test_update_employee_without_changes(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that omitting all optional fields preserves the employee."""
+    original_name = target_employee.full_name
+    original_email = target_employee.email
+
+    updated = update_employee(
+        db_session,
+        target_employee.id_employee,
+    )
+
+    assert updated is target_employee
+    assert updated.full_name == original_name
+    assert updated.email == original_email
+
+
+def test_update_employee_accepts_unchanged_email(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that an employee can retain their existing email."""
+    updated = update_employee(
+        db_session,
+        target_employee.id_employee,
+        email=target_employee.email,
+    )
+
+    assert updated.email == target_employee.email
+
+
+def test_update_employee_rejects_duplicate_email(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that another employee's email cannot be reused."""
+    with pytest.raises(ValueError, match="already exists"):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            email=authenticated_manager.email,
+        )
+
+
+def test_update_employee_unknown_id(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that an unknown employee ID raises ValueError."""
+    unknown_id = target_employee.id_employee + 1_000_000_000
+
+    with pytest.raises(ValueError, match="does not exist"):
+        update_employee(
+            db_session,
+            unknown_id,
+            full_name="New Name",
+        )
+
+
+def test_update_employee_validates_id(
+    db_session,
+    authenticated_manager,
+):
+    """Verify that employee updates reject invalid identifiers."""
+    with pytest.raises(TypeError):
+        update_employee(
+            db_session,
+            "invalid",
+            full_name="New Name",
+        )
+
+
+def test_update_employee_rejects_unknown_role(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that an employee cannot receive an unknown role."""
+    max_role_id = db_session.scalar(select(func.max(Role.id_role)))
+    unknown_role_id = (max_role_id or 0) + 1
+
+    with pytest.raises(ValueError, match="does not exist"):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            id_role=unknown_role_id,
+        )
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("full_name", "   "),
+        ("email", "invalid-email"),
+        ("password", "weak"),
+        ("id_role", "invalid"),
+    ],
+    ids=[
+        "invalid_name",
+        "invalid_email",
+        "invalid_password",
+        "invalid_role_id",
+    ],
+)
+def test_update_employee_rejects_invalid_fields(
+    db_session,
+    authenticated_manager,
+    target_employee,
+    field,
+    value,
+):
+    """Verify that employee updates validate provided values."""
+    expected_exception = TypeError if field == "id_role" else ValueError
+
+    with pytest.raises(expected_exception):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            **{field: value},
+        )
+
+
+@pytest.mark.parametrize(
+    "is_active",
+    [True, False],
+    ids=["activate", "deactivate"],
+)
+def test_update_employee_changes_active_status(
+    db_session,
+    authenticated_manager,
+    target_employee,
+    is_active,
+):
+    """Verify that management can activate or deactivate an employee."""
+    target_employee.is_active = not is_active
+    db_session.flush()
+
+    updated = update_employee(
+        db_session,
+        target_employee.id_employee,
+        is_active=is_active,
+    )
+
+    assert updated.is_active is is_active
+
+
+@pytest.mark.parametrize(
+    "invalid_status",
+    [1, 0, "True", "False"],
+    ids=["integer_one", "integer_zero", "string_true", "string_false"],
+)
+def test_update_employee_rejects_invalid_active_status(
+    db_session,
+    authenticated_manager,
+    target_employee,
+    invalid_status,
+):
+    """Verify that account status only accepts boolean values."""
+    with pytest.raises(TypeError):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            is_active=invalid_status,
+        )
+
+
+def test_update_employee_does_not_apply_partial_changes(
+    db_session,
+    authenticated_manager,
+    target_employee,
+):
+    """Verify that invalid input leaves other attributes unchanged."""
+    original_name = target_employee.full_name
+
+    with pytest.raises(ValueError, match="does not exist"):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            full_name="New Name",
+            id_role=1_000_000_000,
+        )
+
+    assert target_employee.full_name == original_name
+
+
+def test_update_employee_requires_authentication(
+    db_session,
+    sample_employee,
+    target_employee,
+    mock_token_file,
+):
+    """Verify that updating an employee requires authentication."""
+    sample_employee.role.name = "management"
+    db_session.flush()
+
+    assert not mock_token_file.exists()
+
+    with pytest.raises(PermissionDeniedError):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            full_name="New Name",
+        )
+
+
+@pytest.mark.usefixtures("mock_token_file")
+@pytest.mark.parametrize(
+    "role_name",
+    ["sales", "support"],
+)
+def test_update_employee_denies_unauthorized_roles(
+    db_session,
+    sample_employee,
+    target_employee,
+    role_name,
+):
+    """Verify that sales and support employees cannot update accounts."""
+    sample_employee.role.name = role_name
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            full_name="New Name",
+        )
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_update_employee_denies_inactive_manager(
+    db_session,
+    sample_employee,
+    target_employee,
+):
+    """Verify that an inactive manager cannot update employees."""
+    sample_employee.role.name = "management"
+    sample_employee.is_active = False
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            full_name="New Name",
+        )
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_update_employee_denies_unknown_role(
+    db_session,
+    sample_employee,
+    target_employee,
+):
+    """Verify that employees with unknown roles cannot update accounts."""
+    # sample_employee has the unknown role "Test Role".
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        update_employee(
+            db_session,
+            target_employee.id_employee,
+            full_name="New Name",
+        )
