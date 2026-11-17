@@ -1,6 +1,6 @@
 """Integration tests for customer management services."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -472,7 +472,7 @@ def test_update_customer_all_fields(
     owned_customer,
 ):
     """Verify that all customer fields can be updated."""
-    original_datetime = datetime.now(timezone.utc) - timedelta(days=1)
+    original_datetime = datetime.now(UTC) - timedelta(days=1)
     owned_customer.last_update_datetime = original_datetime
     db_session.flush()
 
@@ -490,7 +490,9 @@ def test_update_customer_all_fields(
     db_session.refresh(customer)
 
     assert customer is owned_customer
-    assert customer.last_update_datetime > original_datetime.replace(tzinfo=None)
+    assert (
+        customer.last_update_datetime > original_datetime.replace(tzinfo=None)
+    )
     assert customer.full_name == "Jean Dupont"
     assert customer.email == "updated.customer@example.com"
     assert customer.phone_number == "+33612345678"
@@ -655,7 +657,10 @@ def test_update_customer_unauthorized_sales(
     authenticated_sales,
     owned_customer,
 ):
-    """Verify that a sales employee cannot update another employee's customer."""
+    """
+    Verify that a sales employee cannot update
+    another employee's customer.
+    """
     other_employee = Employee(
         full_name="Other Sales Employee",
         email="other.sales@example.com",
