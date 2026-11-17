@@ -1,8 +1,10 @@
 """Integration tests for customer management services."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
-from epic_events.models import Customer
+from epic_events.models import Customer, Employee
 from epic_events.security.authorizations import PermissionDeniedError
 from epic_events.security.token_storage import save_token
 from epic_events.security.tokens import create_access_token
@@ -10,7 +12,17 @@ from epic_events.services.customer_service import (
     create_customer,
     get_all_customers,
     get_customer_by_id,
+    update_customer,
 )
+
+
+@pytest.fixture
+def owned_customer(db_session, authenticated_sales, sample_customer):
+    """Provide a customer assigned to the authenticated sales employee."""
+    sample_customer.id_sales_employee = authenticated_sales.id_employee
+    db_session.flush()
+
+    return sample_customer
 
 
 @pytest.fixture
@@ -278,7 +290,10 @@ def test_create_customer_success(
     db_session,
     authenticated_sales,
 ):
-    """Verify that a customer is created and assigned to the current sales employee."""
+    """
+    Verify that a customer is created and assigned
+    to the current sales employee.
+    """
     customer = create_customer(
         db_session,
         full_name="  Jean Dupont  ",
@@ -290,6 +305,7 @@ def test_create_customer_success(
     db_session.flush()
 
     assert customer.id_customer is not None
+    assert customer.creation_datetime is not None
     assert customer.full_name == "Jean Dupont"
     assert customer.email == "jean.dupont@example.com"
     assert customer.phone_number == "+33612345678"
@@ -444,4 +460,264 @@ def test_create_customer_denies_unknown_role(
             full_name="Jean Dupont",
             email="jean.dupont@example.com",
             phone_number="0612345678",
+        )
+
+
+# Test "update_customer"
+
+
+def test_update_customer_all_fields(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+):
+    """Verify that all customer fields can be updated."""
+    original_datetime = datetime.now(timezone.utc) - timedelta(days=1)
+    owned_customer.last_update_datetime = original_datetime
+    db_session.flush()
+
+    customer = update_customer(
+        db_session,
+        owned_customer.id_customer,
+        full_name="  Jean Dupont  ",
+        email="  updated.customer@example.com  ",
+        phone_number="06 12 34 56 78",
+        company="  New Company  ",
+        is_active=False,
+    )
+
+    db_session.flush()
+    db_session.refresh(customer)
+
+    assert customer is owned_customer
+    assert customer.last_update_datetime > original_datetime.replace(tzinfo=None)
+    assert customer.full_name == "Jean Dupont"
+    assert customer.email == "updated.customer@example.com"
+    assert customer.phone_number == "+33612345678"
+    assert customer.company == "New Company"
+    assert customer.is_active is False
+    assert customer.id_sales_employee == authenticated_sales.id_employee
+
+
+def test_update_customer_partial(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+):
+    """Verify that omitted fields retain their existing values."""
+    original_email = owned_customer.email
+    original_phone = owned_customer.phone_number
+    original_company = "Original Company"
+    original_status = owned_customer.is_active
+
+    owned_customer.company = original_company
+    db_session.flush()
+
+    customer = update_customer(
+        db_session,
+        owned_customer.id_customer,
+        full_name="Updated Name",
+    )
+
+    assert customer.full_name == "Updated Name"
+    assert customer.email == original_email
+    assert customer.phone_number == original_phone
+    assert customer.company == original_company
+    assert customer.is_active == original_status
+
+
+def test_update_customer_clear_company(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+):
+    """Verify that passing None clears the nullable company field."""
+    owned_customer.company = "Original Company"
+    db_session.flush()
+
+    customer = update_customer(
+        db_session,
+        owned_customer.id_customer,
+        company=None,
+    )
+
+    db_session.flush()
+
+    assert customer.company is None
+
+
+def test_update_customer_same_email(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+):
+    """Verify that a customer can retain its current email address."""
+    customer = update_customer(
+        db_session,
+        owned_customer.id_customer,
+        email=owned_customer.email,
+    )
+
+    assert customer.email == owned_customer.email
+
+
+def test_update_customer_duplicate_email(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+):
+    """Verify that another customer's email cannot be reused."""
+    other_customer = create_customer(
+        db_session,
+        full_name="Another Customer",
+        email="another.customer@example.com",
+        phone_number="0612345678",
+    )
+    db_session.flush()
+
+    with pytest.raises(ValueError, match="already exists"):
+        update_customer(
+            db_session,
+            owned_customer.id_customer,
+            email=other_customer.email,
+        )
+
+
+def test_update_customer_unknown_id(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+):
+    """Verify that updating an unknown customer raises ValueError."""
+    unknown_id = owned_customer.id_customer + 1_000_000_000
+
+    with pytest.raises(ValueError, match="does not exist"):
+        update_customer(
+            db_session,
+            unknown_id,
+            full_name="Updated Name",
+        )
+
+
+@pytest.mark.parametrize(
+    "invalid_field, invalid_value, expected_error",
+    [
+        ("full_name", "   ", ValueError),
+        ("email", "invalid-email", ValueError),
+        ("phone_number", "invalid-number", ValueError),
+        ("company", "   ", ValueError),
+        ("full_name", 123, TypeError),
+        ("is_active", "False", TypeError),
+    ],
+)
+def test_update_customer_invalid_fields(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+    invalid_field,
+    invalid_value,
+    expected_error,
+):
+    """Verify that invalid update values are rejected."""
+    with pytest.raises(expected_error):
+        update_customer(
+            db_session,
+            owned_customer.id_customer,
+            **{invalid_field: invalid_value},
+        )
+
+
+@pytest.mark.parametrize(
+    "new_status",
+    [True, False],
+)
+def test_update_customer_active_status(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+    new_status,
+):
+    """Verify that customers can be activated and deactivated."""
+    owned_customer.is_active = not new_status
+    db_session.flush()
+
+    customer = update_customer(
+        db_session,
+        owned_customer.id_customer,
+        is_active=new_status,
+    )
+
+    assert customer.is_active is new_status
+
+
+def test_update_customer_unauthorized_sales(
+    db_session,
+    authenticated_sales,
+    owned_customer,
+):
+    """Verify that a sales employee cannot update another employee's customer."""
+    other_employee = Employee(
+        full_name="Other Sales Employee",
+        email="other.sales@example.com",
+        password_hash="test-password-hash",
+        is_active=True,
+        id_role=authenticated_sales.id_role,
+    )
+    db_session.add(other_employee)
+    db_session.flush()
+
+    owned_customer.id_sales_employee = other_employee.id_employee
+    db_session.flush()
+
+    with pytest.raises(PermissionDeniedError):
+        update_customer(
+            db_session,
+            owned_customer.id_customer,
+            full_name="Unauthorized Update",
+        )
+
+
+@pytest.mark.usefixtures("mock_token_file")
+@pytest.mark.parametrize(
+    "role_name",
+    ["management", "support"],
+)
+def test_update_customer_unauthorized_roles(
+    db_session,
+    sample_employee,
+    sample_customer,
+    role_name,
+):
+    """Verify that unauthorized roles cannot update customers."""
+    sample_employee.role.name = role_name
+    sample_customer.id_sales_employee = sample_employee.id_employee
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        update_customer(
+            db_session,
+            sample_customer.id_customer,
+            full_name="Unauthorized Update",
+        )
+
+
+def test_update_customer_requires_authentication(
+    db_session,
+    sample_employee,
+    sample_customer,
+    mock_token_file,
+):
+    """Verify that updating a customer requires authentication."""
+    sample_employee.role.name = "sales"
+    db_session.flush()
+
+    assert not mock_token_file.exists()
+
+    with pytest.raises(PermissionDeniedError):
+        update_customer(
+            db_session,
+            sample_customer.id_customer,
+            full_name="Unauthorized Update",
         )

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from epic_events.models import Customer
 from epic_events.security.authorizations import (
     Permission,
+    require_customer_update_permission,
     require_general_permission,
 )
 from epic_events.services.auth_service import get_current_employee
@@ -19,6 +20,13 @@ from epic_events.services.validators import (
     validate_phone_number,
     validate_user_email,
 )
+
+
+class _UnsetType:
+    """Represent a function argument that was not provided."""
+
+
+_UNSET = _UnsetType()
 
 
 def get_all_customers(session: Session) -> list[Customer]:
@@ -87,6 +95,89 @@ def create_customer(
 
     session.add(customer)
     return customer
+
+
+def update_customer(
+    session: Session,
+    customer_id: int,
+    full_name: str | None = None,
+    email: str | None = None,
+    phone_number: str | None = None,
+    company: str | None | _UnsetType = _UNSET,
+    is_active: bool | None = None,
+) -> Customer:
+    """
+    Update an existing customer's information.
+
+    Require an authenticated employee authorized to update the target
+    customer. Retrieve the customer and ensure that it exists.
+
+    Validate and normalize the provided name, email, phone number, and
+    company name. Ensure that any updated email address is not already
+    associated with another customer.
+
+    Update only the provided fields, including the customer's active
+    status. The optional company field supports three operations:
+    - Omitted (_UNSET): preserve the existing value.
+    - String: validate and replace the existing value.
+    - None: clear the company field (set it to NULL).
+
+    Return the updated Customer instance without committing the transaction.
+
+    Raise PermissionDeniedError if the current employee is unauthorized.
+    Raise ValueError if the customer does not exist or the email is already
+    used by another customer.
+    Raise TypeError or ValueError if the provided data is invalid.
+    """
+    current_employee = get_current_employee(session)
+    customer = get_customer_by_id(session, customer_id)
+
+    if customer is None:
+        raise ValueError(f"Customer with ID {customer_id} does not exist.")
+
+    require_customer_update_permission(current_employee, customer)
+
+    if full_name is not None:
+        full_name = validate_full_name(full_name)
+
+    if email is not None:
+        email = validate_user_email(email)
+        statement = select(Customer).where(
+            Customer.email == email,
+            Customer.id_customer != customer_id,
+        )
+        if session.scalar(statement) is not None:
+            raise ValueError("A customer with this email already exists.")
+
+    if phone_number is not None:
+        phone_number = validate_phone_number(phone_number)
+
+    if company is not _UNSET and company is not None:
+        company = validate_company_name(company)
+
+    if is_active is not None and not isinstance(is_active, bool):
+        raise TypeError("'is_active' value must be a boolean (True or False).")
+
+    if full_name is not None:
+        customer.full_name = full_name
+
+    if email is not None:
+        customer.email = email
+
+    if phone_number is not None:
+        customer.phone_number = phone_number
+
+    if company is not _UNSET:
+        customer.company = company
+
+    if is_active is not None:
+        customer.is_active = is_active
+
+    return customer
+
+
+def reaffect_sales_employee_to_customer():
+    pass
 
 
 def get_customer_by_id(
