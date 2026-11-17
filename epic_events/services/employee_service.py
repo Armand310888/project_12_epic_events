@@ -157,7 +157,7 @@ def delete_employee(
     employee = get_employee_by_id(session, employee_id)
 
     if employee is None:
-        raise ValueError(f"Employee with ID {employee_id} does not exist.")   
+        raise ValueError(f"Employee with ID {employee_id} does not exist.")
 
     if employee.customers:
         raise ValueError(
