@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from epic_events.models import Contract, Customer, Employee, Event, Role
 from epic_events.security import token_storage
 from epic_events.security.passwords import hash_password
+from epic_events.security.tokens import create_access_token
 
 TEST_EMPLOYEE_PASSWORD = "TestPassword123!"
 TEST_EMPLOYEE_PASSWORD_HASH = hash_password(TEST_EMPLOYEE_PASSWORD)
@@ -148,3 +149,33 @@ def mock_token_file(monkeypatch, tmp_path):
     token_file = tmp_path / "token"
     monkeypatch.setattr(token_storage, "TOKEN_FILE", token_file)
     return token_file
+
+
+@pytest.fixture
+def authenticated_sales(
+    db_session,
+    sample_employee,
+    mock_token_file,
+):
+    """Provide an authenticated sales employee."""
+    sample_employee.role.name = "sales"
+    db_session.flush()
+
+    token_storage.save_token(create_access_token(sample_employee.id_employee))
+
+    return sample_employee
+
+
+@pytest.fixture
+def authenticated_manager(
+    db_session,
+    sample_employee,
+    mock_token_file,
+):
+    """Provide an authenticated management employee."""
+    sample_employee.role.name = "management"
+    db_session.flush()
+
+    token_storage.save_token(create_access_token(sample_employee.id_employee))
+
+    return sample_employee

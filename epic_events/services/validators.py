@@ -1,5 +1,7 @@
 """Provide reusable input validation and normalization functions."""
 
+from decimal import Decimal
+
 import phonenumbers
 from email_validator import EmailNotValidError, validate_email
 from phonenumbers import NumberParseException
@@ -132,3 +134,23 @@ def validate_string_field(
         )
 
     return value
+
+
+def validate_amount(amount: Decimal, field_name: str = "Amount") -> Decimal:
+    """
+    Validate a non-negative monetary amount
+    with at most two decimal places.
+    """
+    if not isinstance(amount, Decimal):
+        raise TypeError(f"{field_name} must be a Decimal.")
+
+    if not amount.is_finite():
+        raise ValueError(f"{field_name} must be a finite number.")
+
+    if amount < 0:
+        raise ValueError(f"{field_name} cannot be negative.")
+
+    if amount.as_tuple().exponent < -2:
+        raise ValueError(f"{field_name} cannot exceed two decimal places.")
+
+    return amount

@@ -25,20 +25,6 @@ def owned_customer(db_session, authenticated_sales, sample_customer):
     return sample_customer
 
 
-@pytest.fixture
-def authenticated_sales(
-    db_session,
-    sample_employee,
-    mock_token_file,
-):
-    """Provide an authenticated sales employee."""
-    sample_employee.role.name = "sales"
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    return sample_employee
-
 # Test "get_all_customers"
 
 

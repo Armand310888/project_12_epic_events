@@ -1,9 +1,12 @@
 
 """Unit tests for input validation and normalization functions."""
 
+from decimal import Decimal
+
 import pytest
 
 from epic_events.services.validators import (
+    validate_amount,
     validate_company_name,
     validate_full_name,
     validate_id,
@@ -249,3 +252,50 @@ def test_validate_phone_number_rejects_invalid_type():
     """Verify that a non-string phone number is rejected."""
     with pytest.raises(TypeError):
         validate_phone_number(123456789)
+
+
+# Amount validation
+
+
+def test_validate_amount_accepts_valid_amount():
+    """Verify that a valid monetary amount is accepted."""
+    amount = Decimal("1250.50")
+
+    assert validate_amount(amount) == amount
+
+
+def test_validate_amount_accepts_zero():
+    """Verify that zero is accepted as a monetary amount."""
+    amount = Decimal(0)
+
+    assert validate_amount(amount) == amount
+
+
+def test_validate_amount_rejects_negative_amount():
+    """Verify that negative monetary amounts are rejected."""
+    with pytest.raises(ValueError):
+        validate_amount(Decimal("-10.00"))
+
+
+def test_validate_amount_rejects_excessive_precision():
+    """Verify that amounts with more than two decimal places are rejected."""
+    with pytest.raises(ValueError):
+        validate_amount(Decimal("12.345"))
+
+
+def test_validate_amount_rejects_nan():
+    """Verify that NaN is rejected."""
+    with pytest.raises(ValueError):
+        validate_amount(Decimal("NaN"))
+
+
+def test_validate_amount_rejects_infinity():
+    """Verify that infinite monetary amounts are rejected."""
+    with pytest.raises(ValueError):
+        validate_amount(Decimal("Infinity"))
+
+
+def test_validate_amount_rejects_invalid_type():
+    """Verify that non-Decimal values are rejected."""
+    with pytest.raises(TypeError):
+        validate_amount(1250.50)
