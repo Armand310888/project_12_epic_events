@@ -1,5 +1,6 @@
 """Provide reusable input validation and normalization functions."""
 
+from datetime import datetime
 from decimal import Decimal
 
 import phonenumbers
@@ -154,3 +155,83 @@ def validate_amount(amount: Decimal, field_name: str = "Amount") -> Decimal:
         raise ValueError(f"{field_name} cannot exceed two decimal places.")
 
     return amount
+
+
+def validate_address(address: str) -> str:
+    """Validate an event location address."""
+    return validate_string_field(
+        address,
+        field_name="Address",
+        max_length=250,
+    )
+
+
+def validate_event_name(name: str) -> str:
+    "Validate an event name."
+    return validate_string_field(
+        name,
+        field_name="Event name",
+        max_length=250
+    )
+
+
+def validate_notes_text(notes: str) -> str:
+    "Validate a text of notes."
+    return validate_string_field(
+        notes,
+        field_name="Notes",
+        max_length=None,
+    )
+
+
+def validate_attendees_count(attendees_count: int) -> int:
+    """Validate an attendees count is a positive integer above zero."""
+    if (
+        isinstance(attendees_count, bool)
+        or not isinstance(attendees_count, int)
+    ):
+        raise TypeError("Attendees count must be an integer.")
+
+    if attendees_count <= 0:
+        raise ValueError("Attendees count must be a positive integer.")
+
+    return attendees_count
+
+
+def validate_datetime(value: datetime,) -> datetime:
+    """
+    Validate that the provided value is a datetime instance.
+
+    Return the validated datetime without modification.
+
+    Raise TypeError if the value is not a datetime instance.
+    """
+    if not isinstance(value, datetime):
+        raise TypeError("Value must be a datetime.")
+
+    return value
+
+
+def validate_start_before_end_datetime(
+    start_datetime: datetime,
+    end_datetime: datetime,
+) -> tuple[datetime, datetime]:
+    """
+    Validate the chronological order of an event's start and end datetimes.
+
+    Validate both inputs and ensure that the end datetime is strictly
+    later than the start datetime.
+
+    Return the validated start and end datetimes as a tuple.
+
+    Raise TypeError if either value is not a datetime instance.
+    Raise ValueError if the end datetime is earlier than or equal
+    to the start datetime.
+    """
+    start_datetime = validate_datetime(start_datetime)
+    end_datetime = validate_datetime(end_datetime)
+
+    if end_datetime <= start_datetime:
+        raise ValueError("End datetime must be later than start datetime.")
+
+    return start_datetime, end_datetime

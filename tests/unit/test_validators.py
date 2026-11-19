@@ -1,6 +1,7 @@
 
 """Unit tests for input validation and normalization functions."""
 
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -8,10 +9,12 @@ import pytest
 from epic_events.services.validators import (
     validate_amount,
     validate_company_name,
+    validate_datetime,
     validate_full_name,
     validate_id,
     validate_password,
     validate_phone_number,
+    validate_start_before_end_datetime,
     validate_string_field,
     validate_user_email,
 )
@@ -299,3 +302,70 @@ def test_validate_amount_rejects_invalid_type():
     """Verify that non-Decimal values are rejected."""
     with pytest.raises(TypeError):
         validate_amount(1250.50)
+
+
+# Datetime validation
+
+
+def test_validate_datetime_accepts_valid_datetime():
+    """Verify that a valid datetime is accepted."""
+    value = datetime(2026, 11, 18, 14, 30)
+
+    assert validate_datetime(value) == value
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        "2026-11-18 14:30",
+        date(2026, 11, 18),
+        None,
+    ],
+)
+def test_validate_datetime_rejects_invalid_type(invalid_value):
+    """Verify that non-datetime values are rejected."""
+    with pytest.raises(TypeError):
+        validate_datetime(invalid_value)
+
+
+# Start and end datetime validation
+
+
+def test_validate_start_before_end_datetime_accepts_valid_dates():
+    """Verify that chronological datetimes are accepted and returned."""
+    start = datetime(2026, 11, 18, 14, 30)
+    end = datetime(2026, 11, 18, 18, 0)
+
+    result = validate_start_before_end_datetime(start, end)
+
+    assert result == (start, end)
+
+
+def test_validate_start_before_end_datetime_rejects_end_before_start():
+    """Verify that an end datetime earlier than the start is rejected."""
+    start = datetime(2026, 11, 18, 18, 0)
+    end = datetime(2026, 11, 18, 14, 30)
+
+    with pytest.raises(ValueError, match="later than start datetime"):
+        validate_start_before_end_datetime(start, end)
+
+
+def test_validate_start_before_end_datetime_rejects_equal_dates():
+    """Verify that an event cannot have a zero duration."""
+    value = datetime(2026, 11, 18, 14, 30)
+
+    with pytest.raises(ValueError, match="later than start datetime"):
+        validate_start_before_end_datetime(value, value)
+
+
+@pytest.mark.parametrize(
+    "start, end",
+    [
+        ("2026-11-18 14:30", datetime(2026, 11, 18, 18, 0)),
+        (datetime(2026, 11, 18, 14, 30), "2026-11-18 18:00"),
+    ],
+)
+def test_validate_start_before_end_datetime_rejects_invalid_type(start, end):
+    """Verify that both datetime arguments are type-checked."""
+    with pytest.raises(TypeError):
+        validate_start_before_end_datetime(start, end)

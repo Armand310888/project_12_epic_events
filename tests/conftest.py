@@ -179,3 +179,18 @@ def authenticated_manager(
     token_storage.save_token(create_access_token(sample_employee.id_employee))
 
     return sample_employee
+
+
+@pytest.fixture
+def authenticated_support(
+    db_session,
+    sample_employee,
+    mock_token_file,
+):
+    """Provide an authenticated support employee."""
+    sample_employee.role.name = "support"
+    db_session.flush()
+
+    token_storage.save_token(create_access_token(sample_employee.id_employee))
+
+    return sample_employee
