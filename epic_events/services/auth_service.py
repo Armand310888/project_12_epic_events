@@ -101,5 +101,20 @@ def get_current_employee(
     return None
 
 
+def logout_employee() -> bool:
+    """
+    Remove the locally stored token if present.
+
+    Return True if a token was present, False otherwise.
+    """
+    token = load_token()
+
+    if token is None:
+        return False
+
+    delete_token()
+    return True
+
+
 class AlreadyAuthenticatedError(Exception):
     """Raised when a login is attempted while a valid session is active."""
