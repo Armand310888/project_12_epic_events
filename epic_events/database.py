@@ -3,9 +3,12 @@
 
 import os
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
+load_dotenv()
 
 password = os.environ["EPIC_EVENTS_DB_PASSWORD"]
 
@@ -18,7 +21,7 @@ url = URL.create(
     database="epic_events"
 )
 
-engine = create_engine(url=url, echo=True)
+engine = create_engine(url=url, echo=False)
 
 if __name__ == "__main__":
     with engine.connect() as connection:

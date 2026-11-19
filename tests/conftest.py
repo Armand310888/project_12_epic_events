@@ -5,6 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 
 import pytest
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
@@ -29,6 +30,8 @@ def test_engine():
     """Provide a dedicated MySQL test engine
     and dispose of it after the test session.
     """
+    load_dotenv()
+
     password = os.environ["EPIC_EVENTS_TEST_DB_PASSWORD"]
 
     url = URL.create(

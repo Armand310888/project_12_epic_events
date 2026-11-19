@@ -8,9 +8,12 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
+from dotenv import load_dotenv
 from jwt.exceptions import InvalidTokenError
 
 from epic_events.services.validators import validate_id
+
+load_dotenv()
 
 SECRET_KEY = os.environ["EPIC_EVENTS_JWT_SECRET_KEY"]
 
