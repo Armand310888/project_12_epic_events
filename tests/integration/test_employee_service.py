@@ -12,6 +12,7 @@ from epic_events.services.employee_service import (
     create_employee,
     delete_employee,
     get_employee_by_id,
+    get_role_by_name,
     update_employee,
 )
 
@@ -686,3 +687,45 @@ def test_delete_employee_denies_unknown_role(
 
     with pytest.raises(PermissionDeniedError):
         delete_employee(db_session, target_employee.id_employee)
+
+
+# Tests for get_role_by_name()
+
+
+def test_get_role_by_name_existing_role(db_session):
+    """Return the matching role when it exists."""
+    role = Role(name="sales")
+    db_session.add(role)
+    db_session.flush()
+
+    result = get_role_by_name(db_session, "sales")
+
+    assert result is not None
+    assert result.id_role == role.id_role
+    assert result.name == "sales"
+
+
+def test_get_role_by_name_normalizes_name(db_session):
+    """Normalize whitespace and case before searching."""
+    role = Role(name="support")
+    db_session.add(role)
+    db_session.flush()
+
+    result = get_role_by_name(db_session, "  SUPPORT  ")
+
+    assert result is not None
+    assert result.id_role == role.id_role
+
+
+@pytest.mark.parametrize("name", ["", " ", "   "])
+def test_get_role_by_name_rejects_empty_name(db_session, name):
+    """Reject empty or whitespace-only role names."""
+    with pytest.raises(ValueError, match="Role name cannot be empty"):
+        get_role_by_name(db_session, name)
+
+
+@pytest.mark.parametrize("name", [None, 123, True])
+def test_get_role_by_name_rejects_invalid_type(db_session, name):
+    """Reject role names that are not strings."""
+    with pytest.raises(TypeError, match="Role name must be a string"):
+        get_role_by_name(db_session, name)

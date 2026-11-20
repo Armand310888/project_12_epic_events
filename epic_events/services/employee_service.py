@@ -180,3 +180,18 @@ def get_employee_by_id(
     id_employee = validate_id(id_employee)
 
     return session.get(Employee, id_employee)
+
+
+def get_role_by_name(session: Session, name: str) -> Role | None:
+    """Retrieve a role by its name, or return None if it does not exist."""
+    if not isinstance(name, str):
+        raise TypeError("Role name must be a string.")
+
+    name = name.strip().lower()
+
+    if not name:
+        raise ValueError("Role name cannot be empty.")
+
+    statement = select(Role).where(Role.name == name)
+
+    return session.scalar(statement)
