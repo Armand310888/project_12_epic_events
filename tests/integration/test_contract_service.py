@@ -11,29 +11,10 @@ from epic_events.security.token_storage import save_token
 from epic_events.security.tokens import create_access_token
 from epic_events.services.contract_service import (
     create_contract,
-    get_all_contracts,
     get_contract_by_id,
-    get_contracts_by_customer,
-    get_unpaid_contracts,
-    get_unsigned_contracts,
+    get_contracts,
     update_contract,
 )
-
-READ_OPERATIONS = [
-    lambda session: get_all_contracts(session),
-    lambda session: get_contract_by_id(session, 1),
-    lambda session: get_unsigned_contracts(session),
-    lambda session: get_contracts_by_customer(session, 1),
-    lambda session: get_unpaid_contracts(session),
-]
-
-READ_OPERATIONS_IDS = [
-    "all_contracts",
-    "contract_by_id",
-    "unsigned_contracts",
-    "contracts_by_customer",
-    "unpaid_contracts",
-]
 
 
 @pytest.fixture
@@ -51,53 +32,6 @@ def owned_contract(
     db_session.flush()
 
     return sample_contract
-
-
-# Test "get_all_contracts"
-
-
-@pytest.mark.usefixtures("mock_token_file")
-def test_get_all_contracts_success(
-    db_session,
-    sample_employee,
-    sample_contract,
-):
-    """Verify that all contracts are returned regardless of signature."""
-    sample_employee.role.name = "sales"
-
-    signed_contract = Contract(
-        total_amount=Decimal("2000.00"),
-        outstanding_balance=Decimal("500.00"),
-        is_signed=True,
-        id_customer=sample_contract.id_customer,
-    )
-
-    db_session.add(signed_contract)
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    contracts = get_all_contracts(db_session)
-
-    assert isinstance(contracts, list)
-    assert {contract.id_contract for contract in contracts} == {
-        sample_contract.id_contract,
-        signed_contract.id_contract,
-    }
-
-
-@pytest.mark.usefixtures("mock_token_file")
-def test_get_all_contracts_empty_database(
-    db_session,
-    sample_employee,
-):
-    """Verify that an empty contract table returns an empty list."""
-    sample_employee.role.name = "sales"
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    assert get_all_contracts(db_session) == []
 
 
 # Test "get_contract_by_id"
@@ -141,198 +75,18 @@ def test_get_contract_by_id_unknown_id(
 
 
 @pytest.mark.usefixtures("mock_token_file")
-@pytest.mark.parametrize(
-    "read_operation",
-    [
-        get_contract_by_id,
-        get_contracts_by_customer,
-    ],
-    ids=[
-        "contract_by_id",
-        "contracts_by_customer",
-    ],
-)
-def test_contract_reads_validate_ids(
+def test_get_contract_by_id_invalid_id(
     db_session,
     sample_employee,
-    read_operation,
 ):
-    """Verify that contract read services reject invalid identifiers."""
+    """Verify that an invalid contract ID raises TypeError."""
     sample_employee.role.name = "sales"
     db_session.flush()
 
     save_token(create_access_token(sample_employee.id_employee))
 
     with pytest.raises(TypeError):
-        read_operation(db_session, "invalid_id")
-
-
-# Test "get_unsigned_contracts"
-
-
-@pytest.mark.usefixtures("mock_token_file")
-def test_get_unsigned_contracts_success(
-    db_session,
-    sample_employee,
-    sample_customer,
-):
-    """Verify that only unsigned contracts are returned."""
-    sample_employee.role.name = "sales"
-
-    unsigned_contract = Contract(
-        total_amount=Decimal("1000.00"),
-        outstanding_balance=Decimal("1000.00"),
-        is_signed=False,
-        id_customer=sample_customer.id_customer,
-    )
-
-    signed_contract = Contract(
-        total_amount=Decimal("2000.00"),
-        outstanding_balance=Decimal("2000.00"),
-        is_signed=True,
-        id_customer=sample_customer.id_customer,
-    )
-
-    db_session.add_all([unsigned_contract, signed_contract])
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    contracts = get_unsigned_contracts(db_session)
-
-    assert {contract.id_contract for contract in contracts} == {
-        unsigned_contract.id_contract,
-    }
-
-
-@pytest.mark.usefixtures("mock_token_file")
-def test_get_unsigned_contracts_no_matches(
-    db_session,
-    sample_employee,
-    sample_contract,
-):
-    """Verify that no unsigned contracts returns an empty list."""
-    sample_employee.role.name = "sales"
-    sample_contract.is_signed = True
-
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    assert get_unsigned_contracts(db_session) == []
-
-
-# Test "get_contracts_by_customer"
-
-
-@pytest.mark.usefixtures("mock_token_file")
-def test_get_contracts_by_customer_success(
-    db_session,
-    sample_employee,
-    sample_customer,
-    sample_contract,
-):
-    """Verify that only contracts belonging to the customer are returned."""
-    sample_employee.role.name = "sales"
-
-    second_contract = Contract(
-        total_amount=Decimal("1500.00"),
-        outstanding_balance=Decimal("500.00"),
-        id_customer=sample_customer.id_customer,
-    )
-
-    other_customer = Customer(
-        full_name="Other Customer",
-        email="othercustomer@example.com",
-        phone_number="0101010101",
-        id_sales_employee=sample_employee.id_employee,
-        is_active=True,
-    )
-
-    db_session.add_all([second_contract, other_customer])
-    db_session.flush()
-
-    other_contract = Contract(
-        total_amount=Decimal("800.00"),
-        outstanding_balance=Decimal("800.00"),
-        id_customer=other_customer.id_customer,
-    )
-
-    db_session.add(other_contract)
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    contracts = get_contracts_by_customer(
-        db_session,
-        sample_customer.id_customer,
-    )
-
-    assert {contract.id_contract for contract in contracts} == {
-        sample_contract.id_contract,
-        second_contract.id_contract,
-    }
-    assert other_contract not in contracts
-
-
-@pytest.mark.usefixtures("mock_token_file")
-def test_get_contracts_by_customer_no_matches(
-    db_session,
-    sample_employee,
-    sample_contract,
-):
-    """Verify that an unknown customer ID returns an empty list."""
-    sample_employee.role.name = "sales"
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    unknown_id = sample_contract.id_customer + 1_000_000_000
-
-    assert get_contracts_by_customer(db_session, unknown_id) == []
-
-
-# Test "get_unpaid_contracts"
-
-
-@pytest.mark.usefixtures("mock_token_file")
-def test_get_unpaid_contracts_success(
-    db_session,
-    sample_employee,
-    sample_contract,
-):
-    """
-    Verify that only contracts with a positive
-    outstanding balance are returned.
-    """
-    sample_employee.role.name = "sales"
-    sample_contract.outstanding_balance = Decimal("0.00")
-
-    almost_paid_contract = Contract(
-        total_amount=Decimal("1000.00"),
-        outstanding_balance=Decimal("0.01"),
-        is_signed=True,
-        id_customer=sample_contract.id_customer,
-    )
-
-    unpaid_contract = Contract(
-        total_amount=Decimal("1000.00"),
-        outstanding_balance=Decimal("1000.00"),
-        is_signed=False,
-        id_customer=sample_contract.id_customer,
-    )
-
-    db_session.add_all([almost_paid_contract, unpaid_contract])
-    db_session.flush()
-
-    save_token(create_access_token(sample_employee.id_employee))
-
-    contracts = get_unpaid_contracts(db_session)
-
-    assert {contract.id_contract for contract in contracts} == {
-        almost_paid_contract.id_contract,
-        unpaid_contract.id_contract,
-    }
+        get_contract_by_id(db_session, "invalid_id")
 
 
 # Test contract read permissions
@@ -355,7 +109,7 @@ def test_contract_read_allows_all_business_roles(
 
     save_token(create_access_token(sample_employee.id_employee))
 
-    contracts = get_all_contracts(db_session)
+    contracts = get_contracts(db_session)
 
     assert contracts == [sample_contract]
 
@@ -363,8 +117,11 @@ def test_contract_read_allows_all_business_roles(
 @pytest.mark.usefixtures("mock_token_file")
 @pytest.mark.parametrize(
     "read_operation",
-    READ_OPERATIONS,
-    ids=READ_OPERATIONS_IDS,
+    [
+        lambda session: get_contracts(session),
+        lambda session: get_contract_by_id(session, 1),
+    ],
+    ids=["get_contracts", "get_contract_by_id"],
 )
 def test_contract_reads_require_authentication(
     db_session,
@@ -378,8 +135,11 @@ def test_contract_reads_require_authentication(
 @pytest.mark.usefixtures("mock_token_file")
 @pytest.mark.parametrize(
     "read_operation",
-    READ_OPERATIONS,
-    ids=READ_OPERATIONS_IDS,
+    [
+        lambda session: get_contracts(session),
+        lambda session: get_contract_by_id(session, 1),
+    ],
+    ids=["get_contracts", "get_contract_by_id"],
 )
 def test_contract_reads_deny_inactive_employee(
     db_session,
@@ -400,8 +160,11 @@ def test_contract_reads_deny_inactive_employee(
 @pytest.mark.usefixtures("mock_token_file")
 @pytest.mark.parametrize(
     "read_operation",
-    READ_OPERATIONS,
-    ids=READ_OPERATIONS_IDS,
+    [
+        lambda session: get_contracts(session),
+        lambda session: get_contract_by_id(session, 1),
+    ],
+    ids=["get_contracts", "get_contract_by_id"],
 )
 def test_contract_reads_deny_unknown_role(
     db_session,
@@ -816,3 +579,131 @@ def test_update_contract_requires_authentication(
             sample_contract.id_contract,
             is_signed=True,
         )
+
+
+# Test "get_contracts" - Individual filters
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_contracts_by_customer_id(
+    db_session,
+    sample_employee,
+    sample_customer,
+    sample_contract,
+):
+    """Verify that contracts can be filtered by customer ID."""
+    sample_employee.role.name = "sales"
+
+    other_customer = Customer(
+        full_name="Marie Martin",
+        email="marie@example.com",
+        phone_number="0101010101",
+        id_sales_employee=sample_employee.id_employee,
+        is_active=True,
+    )
+    db_session.add(other_customer)
+    db_session.flush()
+
+    other_contract = Contract(
+        total_amount=Decimal("1000.00"),
+        outstanding_balance=Decimal("500.00"),
+        is_signed=True,
+        id_customer=other_customer.id_customer,
+    )
+    db_session.add(other_contract)
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    contracts = get_contracts(
+        db_session,
+        customer_id=sample_customer.id_customer,
+    )
+
+    assert contracts == [sample_contract]
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_contracts_by_customer_name(
+    db_session,
+    sample_employee,
+    sample_customer,
+    sample_contract,
+):
+    """Verify case-insensitive partial customer name filtering."""
+    sample_employee.role.name = "sales"
+    sample_customer.full_name = "Jean Dupont"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    contracts = get_contracts(
+        db_session,
+        customer_name="  dUpOnT  ",
+    )
+
+    assert contracts == [sample_contract]
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_contracts_by_company_name(
+    db_session,
+    sample_employee,
+    sample_customer,
+    sample_contract,
+):
+    """Verify case-insensitive partial company name filtering."""
+    sample_employee.role.name = "sales"
+    sample_customer.company = "Alpha Immobilier"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    contracts = get_contracts(
+        db_session,
+        company_name="  ALPHA  ",
+    )
+
+    assert contracts == [sample_contract]
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_contracts_unsigned(
+    db_session,
+    sample_employee,
+    sample_contract,
+):
+    """Verify that only unsigned contracts are returned."""
+    sample_employee.role.name = "sales"
+    sample_contract.is_signed = False
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    contracts = get_contracts(
+        db_session,
+        unsigned=True,
+    )
+
+    assert contracts == [sample_contract]
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_contracts_unpaid(
+    db_session,
+    sample_employee,
+    sample_contract,
+):
+    """Verify that contracts with a positive balance are returned."""
+    sample_employee.role.name = "sales"
+    sample_contract.outstanding_balance = Decimal("0.01")
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    contracts = get_contracts(
+        db_session,
+        unpaid=True,
+    )
+
+    assert contracts == [sample_contract]
