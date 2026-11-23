@@ -1,6 +1,13 @@
+"""Define CLI commands for customer management."""
+
 import click
 
+from epic_events.cli.display import display_customers
 from epic_events.database import session_factory
+from epic_events.security.authorizations import PermissionDeniedError
+from epic_events.services.customer_service import (
+    create_customer as service_create_customer,
+)
 from epic_events.services.customer_service import (
     get_all_customers,
 )
@@ -14,8 +21,43 @@ def customers():
 @customers.command(name="list")
 def list_customers():
     """List all customers."""
-    with session_factory() as session:
-        customers = get_all_customers(session)
+    try:
+        with session_factory() as session:
+            customers = get_all_customers(session)
+            display_customers(customers)
 
-        for customer in customers:
-            click.echo(customer.full_name)
+    except PermissionDeniedError as exception:
+        raise click.ClickException(str(exception)) from exception
+
+
+@customers.command(name="create")
+def create_customer() -> None:
+    """Create a new customer."""
+    full_name = click.prompt("Full name")
+    email = click.prompt("Email")
+    phone_number = click.prompt("Phone number")
+    company = click.prompt(
+        "Company",
+        default="",
+        show_default=False,
+    )
+    company = company or None
+
+    try:
+        with session_factory() as session:
+            customer = service_create_customer(
+                session,
+                full_name,
+                email,
+                phone_number,
+                company,
+            )
+
+            session.commit()
+
+            customer_name = customer.full_name
+
+    except (ValueError, TypeError, PermissionDeniedError) as exception:
+        raise click.ClickException(str(exception)) from exception
+
+    click.echo(f"Customer '{customer_name}' created successfully.")

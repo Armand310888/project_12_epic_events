@@ -1,9 +1,12 @@
+"""Define CLI commands for employee authentication and logout."""
+
 import click
 
 from epic_events.database import session_factory
 from epic_events.services.auth_service import (
     AlreadyAuthenticatedError,
     login_employee,
+    logout_employee,
 )
 
 
@@ -43,3 +46,13 @@ def login():
         raise click.ClickException("Invalid email or password.")
 
     click.echo(f"Welcome, {employee_name}!")
+
+
+@auth.command(name="logout")
+def logout():
+    """Log out the current employee."""
+    result = logout_employee()
+    if result is False:
+        click.echo("No active session to log out.")
+    else:
+        click.echo("Successfully logged out.")
