@@ -10,8 +10,8 @@ from epic_events.security.token_storage import save_token
 from epic_events.security.tokens import create_access_token
 from epic_events.services.customer_service import (
     create_customer,
-    get_all_customers,
     get_customer_by_id,
+    get_customers,
     update_customer,
 )
 
@@ -25,52 +25,28 @@ def owned_customer(db_session, authenticated_sales, sample_customer):
     return sample_customer
 
 
-# Test "get_all_customers"
+# Test "get_customers"
 
 
 @pytest.mark.usefixtures("mock_token_file")
-def test_get_all_customers_success(
+def test_get_customers_without_filters(
     db_session,
     sample_employee,
     sample_customer,
 ):
-    """Verify that an authenticated employee can retrieve all customers."""
+    """Verify that all customers are returned without filters."""
     sample_employee.role.name = "sales"
-    db_session.flush()
-
-    customer_2 = Customer(
-        full_name="Second Customer",
-        email="customer2@example.com",
-        phone_number="0101010101",
-        id_sales_employee=sample_employee.id_employee,
-        is_active=True,
-    )
-
-    customer_3 = Customer(
-        full_name="Inactive Customer",
-        email="customer3@example.com",
-        phone_number="0101010101",
-        id_sales_employee=sample_employee.id_employee,
-        is_active=False,
-    )
-
-    db_session.add_all([customer_2, customer_3])
     db_session.flush()
 
     save_token(create_access_token(sample_employee.id_employee))
 
-    customers = get_all_customers(db_session)
+    customers = get_customers(db_session)
 
-    assert isinstance(customers, list)
-    assert {customer.id_customer for customer in customers} == {
-        sample_customer.id_customer,
-        customer_2.id_customer,
-        customer_3.id_customer,
-    }
+    assert customers == [sample_customer]
 
 
 @pytest.mark.usefixtures("mock_token_file")
-def test_get_all_customers_empty_database(
+def test_get_customers_empty_database(
     db_session,
     sample_employee,
 ):
@@ -80,51 +56,232 @@ def test_get_all_customers_empty_database(
 
     save_token(create_access_token(sample_employee.id_employee))
 
-    customers = get_all_customers(db_session)
+    assert get_customers(db_session) == []
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_customers_by_id(
+    db_session,
+    sample_employee,
+    sample_customer,
+):
+    """Verify that filtering by ID returns only the matching customer."""
+    sample_employee.role.name = "sales"
+
+    other_customer = Customer(
+        full_name="Marie Martin",
+        email="marie.martin@example.com",
+        phone_number="0101010101",
+        id_sales_employee=sample_employee.id_employee,
+        is_active=True,
+    )
+
+    db_session.add(other_customer)
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    customers = get_customers(
+        db_session,
+        customer_id=sample_customer.id_customer,
+    )
+
+    assert customers == [sample_customer]
+    assert other_customer not in customers
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_customers_unknown_id(
+    db_session,
+    sample_employee,
+    sample_customer,
+):
+    """Verify that an unknown customer ID returns an empty list."""
+    sample_employee.role.name = "sales"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    unknown_id = sample_customer.id_customer + 1_000_000_000
+
+    customers = get_customers(
+        db_session,
+        customer_id=unknown_id,
+    )
 
     assert customers == []
 
 
-def test_get_all_customers_requires_authentication(
-    db_session,
-    mock_token_file,
-):
-    """Verify that unauthenticated users cannot retrieve customers."""
-    assert not mock_token_file.exists()
-
-    with pytest.raises(PermissionDeniedError):
-        get_all_customers(db_session)
-
-
 @pytest.mark.usefixtures("mock_token_file")
-def test_get_all_customers_denies_inactive_employee(
+def test_get_customers_invalid_id(
     db_session,
     sample_employee,
 ):
-    """Verify that inactive employees cannot retrieve customers."""
+    """Verify that an invalid customer ID raises TypeError."""
     sample_employee.role.name = "sales"
-    sample_employee.is_active = False
+    db_session.flush()
 
     save_token(create_access_token(sample_employee.id_employee))
 
-    with pytest.raises(PermissionDeniedError):
-        get_all_customers(db_session)
+    with pytest.raises(TypeError):
+        get_customers(
+            db_session,
+            customer_id="invalid_id",
+        )
 
 
 @pytest.mark.usefixtures("mock_token_file")
-def test_get_all_customers_denies_unknown_role(
+def test_get_customers_by_partial_name(
+    db_session,
+    sample_employee,
+    sample_customer,
+):
+    """Verify case-insensitive partial name filtering."""
+    sample_employee.role.name = "sales"
+    sample_customer.full_name = "Jean Dupont"
+
+    matching_customer = Customer(
+        full_name="Marie Dupuis",
+        email="marie.dupuis@example.com",
+        phone_number="0101010101",
+        id_sales_employee=sample_employee.id_employee,
+        is_active=True,
+    )
+
+    other_customer = Customer(
+        full_name="Paul Martin",
+        email="paul.martin@example.com",
+        phone_number="0202020202",
+        id_sales_employee=sample_employee.id_employee,
+        is_active=True,
+    )
+
+    db_session.add_all([matching_customer, other_customer])
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    customers = get_customers(
+        db_session,
+        customer_name="  dUp  ",
+    )
+
+    assert {customer.id_customer for customer in customers} == {
+        sample_customer.id_customer,
+        matching_customer.id_customer,
+    }
+    assert other_customer not in customers
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_customers_combined_filters(
+    db_session,
+    sample_employee,
+    sample_customer,
+):
+    """Verify that ID and name filters are combined using AND."""
+    sample_employee.role.name = "sales"
+    sample_customer.full_name = "Jean Dupont"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    matching_customers = get_customers(
+        db_session,
+        customer_id=sample_customer.id_customer,
+        customer_name="Dupont",
+    )
+
+    non_matching_customers = get_customers(
+        db_session,
+        customer_id=sample_customer.id_customer,
+        customer_name="Martin",
+    )
+
+    assert matching_customers == [sample_customer]
+    assert non_matching_customers == []
+
+
+@pytest.mark.usefixtures("mock_token_file")
+@pytest.mark.parametrize(
+    "invalid_name",
+    ["", "   "],
+)
+def test_get_customers_empty_name(
+    db_session,
+    sample_employee,
+    invalid_name,
+):
+    """Verify that empty search terms are rejected."""
+    sample_employee.role.name = "sales"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(ValueError):
+        get_customers(
+            db_session,
+            customer_name=invalid_name,
+        )
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_customers_invalid_name_type(
     db_session,
     sample_employee,
 ):
-    """Verify that employees with unknown roles cannot retrieve customers."""
-    # sample_employee has the unknown role "Test Role".
+    """Verify that customer name filters must be strings."""
+    sample_employee.role.name = "sales"
+    db_session.flush()
+
     save_token(create_access_token(sample_employee.id_employee))
 
-    with pytest.raises(PermissionDeniedError):
-        get_all_customers(db_session)
+    with pytest.raises(TypeError):
+        get_customers(
+            db_session,
+            customer_name=123,
+        )
 
 
-# Test get customer by id
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_customers_name_too_long(
+    db_session,
+    sample_employee,
+):
+    """Verify that customer name filters cannot exceed 100 characters."""
+    sample_employee.role.name = "sales"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(ValueError):
+        get_customers(
+            db_session,
+            customer_name="A" * 101,
+        )
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_customers_name_no_matches(
+    db_session,
+    sample_employee,
+    sample_customer,
+):
+    """Verify that an unmatched name returns an empty list."""
+    sample_employee.role.name = "sales"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    customers = get_customers(
+        db_session,
+        customer_name="NonexistentCustomerXYZ",
+    )
+
+    assert customers == []
+
+
+# Test "get_customer_by_id"
 
 
 @pytest.mark.usefixtures("mock_token_file")
@@ -266,7 +423,7 @@ def test_customer_read_allows_all_business_roles(
 
     save_token(create_access_token(sample_employee.id_employee))
 
-    assert get_all_customers(db_session) == [sample_customer]
+    assert get_customers(db_session) == [sample_customer]
 
 
 # Test "create_customer"

@@ -29,21 +29,40 @@ class _UnsetType:
 _UNSET = _UnsetType()
 
 
-def get_all_customers(session: Session) -> list[Customer]:
+def get_customers(
+    session: Session,
+    customer_id: int | None = None,
+    customer_name: str | None = None,
+) -> list[Customer]:
     """
-    Retrieve all customers accessible to the authenticated employee.
+    Retrieve customers matching optional filters.
 
-    Require authentication and the CUSTOMER_READ permission before
-    querying the database.
+    Require the CUSTOMER_READ permission.
+    Allow filtering by customer ID and partial customer name.
+    Combine multiple filters using AND logic.
 
-    Return an empty list if no customers exist.
+    Return matching customers, or an empty list if none exist.
     Raise PermissionDeniedError if access is unauthorized.
+    Raise TypeError or ValueError if a filter is invalid.
     """
     employee = get_current_employee(session)
 
     require_general_permission(employee, Permission.CUSTOMER_READ)
 
     statement = select(Customer)
+
+    if customer_id is not None:
+        customer_id = validate_id(customer_id)
+
+        statement = statement.where(Customer.id_customer == customer_id)
+
+    if customer_name is not None:
+        customer_name = validate_full_name(customer_name)
+
+        statement = statement.where(
+            Customer.full_name.ilike(f"%{customer_name}%")
+        )
+
     return list(session.scalars(statement).all())
 
 
