@@ -6,7 +6,12 @@ import click
 
 from epic_events.cli.display import display_contracts
 from epic_events.database import session_factory
-from epic_events.security.authorizations import PermissionDeniedError
+from epic_events.security.authorizations import (
+    Permission,
+    PermissionDeniedError,
+    require_general_permission,
+)
+from epic_events.services.auth_service import get_current_employee
 from epic_events.services.contract_service import (
     create_contract as service_create_contract,
 )
@@ -70,6 +75,17 @@ def list_contracts(
 @contracts.command(name="create")
 def create_contract() -> None:
     """Create a new contract."""
+    try:
+        with session_factory() as session:
+            employee = get_current_employee(session)
+            require_general_permission(
+                employee,
+                Permission.CONTRACT_CREATE,
+            )
+
+    except PermissionDeniedError as exception:
+        raise click.ClickException(str(exception)) from exception
+
     total_amount = click.prompt(
         "Total amount",
         type=Decimal,

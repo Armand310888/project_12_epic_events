@@ -4,7 +4,12 @@ import click
 
 from epic_events.cli.display import display_customers
 from epic_events.database import session_factory
-from epic_events.security.authorizations import PermissionDeniedError
+from epic_events.security.authorizations import (
+    Permission,
+    PermissionDeniedError,
+    require_general_permission,
+)
+from epic_events.services.auth_service import get_current_employee
 from epic_events.services.customer_service import (
     create_customer as service_create_customer,
 )
@@ -33,6 +38,16 @@ def list_customers():
 @customers.command(name="create")
 def create_customer() -> None:
     """Create a new customer."""
+    try:
+        with session_factory() as session:
+            employee = get_current_employee(session)
+            require_general_permission(
+                employee,
+                Permission.CUSTOMER_CREATE)
+
+    except PermissionDeniedError as exception:
+        raise click.ClickException(str(exception)) from exception
+
     full_name = click.prompt("Full name")
     email = click.prompt("Email")
     phone_number = click.prompt("Phone number")
