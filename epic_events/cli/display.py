@@ -23,7 +23,7 @@ def display_customers(customers: list[Customer]) -> None:
 
     for customer in customers:
         table.add_row(
-            customer.id_customer,
+            str(customer.id_customer),
             customer.full_name,
             customer.email,
             customer.phone_number,

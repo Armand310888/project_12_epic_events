@@ -68,7 +68,7 @@ def list_contracts(
 
             display_contracts(contracts_list)
 
-    except PermissionDeniedError as exception:
+    except (ValueError, TypeError, PermissionDeniedError) as exception:
         raise click.ClickException(str(exception)) from exception
 
 

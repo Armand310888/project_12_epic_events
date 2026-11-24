@@ -14,7 +14,7 @@ from epic_events.services.customer_service import (
     create_customer as service_create_customer,
 )
 from epic_events.services.customer_service import (
-    get_all_customers,
+    get_customers,
 )
 
 
@@ -24,14 +24,35 @@ def customers():
 
 
 @customers.command(name="list")
-def list_customers():
-    """List all customers."""
+@click.option(
+    "--name",
+    type=str,
+    default=None,
+    help="Filter customers by name."
+)
+@click.option(
+    "--id",
+    "customer_id",
+    type=int,
+    default=None,
+    help="Filter customers by ID."
+)
+def list_customers(
+    name: str | None,
+    customer_id: int | None,
+):
+    """List customers with optional filters."""
     try:
         with session_factory() as session:
-            customers = get_all_customers(session)
+            customers = get_customers(
+                session,
+                customer_id=customer_id,
+                customer_name=name,
+            )
+
             display_customers(customers)
 
-    except PermissionDeniedError as exception:
+    except (ValueError, TypeError, PermissionDeniedError) as exception:
         raise click.ClickException(str(exception)) from exception
 
 
