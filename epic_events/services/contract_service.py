@@ -20,6 +20,7 @@ from epic_events.services.auth_service import get_current_employee
 from epic_events.services.customer_service import get_customer_by_id
 from epic_events.services.validators import (
     validate_amount,
+    validate_company_name,
     validate_full_name,
     validate_id,
 )
@@ -254,10 +255,7 @@ def get_contracts(
         )
 
     if company_name is not None:
-        company_name = company_name.strip()
-
-        if not company_name:
-            raise ValueError("Company name cannot be empty.")
+        company_name = validate_company_name(company_name)
 
         statement = statement.where(
             Customer.company.ilike(f"%{company_name}%")
