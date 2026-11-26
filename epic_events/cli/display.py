@@ -27,7 +27,7 @@ def display_customers(customers: list[Customer]) -> None:
             customer.full_name,
             customer.email,
             customer.phone_number,
-            customer.company or "-"
+            customer.company or "-",
         )
 
     console.print(table)

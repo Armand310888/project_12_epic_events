@@ -1,4 +1,4 @@
-"""Define CLI commands for contract management"""
+"""Define CLI commands for contract management."""
 
 from decimal import Decimal
 
@@ -23,7 +23,7 @@ from epic_events.services.customer_service import (
 
 @click.group()
 def contracts():
-    """Manage contracts"""
+    """Manage contracts."""
 
 
 @contracts.command(name="list")
