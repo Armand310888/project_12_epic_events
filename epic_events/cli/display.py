@@ -47,6 +47,7 @@ def display_contracts(contracts: list[Contract]) -> None:
     table.add_column("Amount")
     table.add_column("Outstanding balance")
     table.add_column("Creation datetime")
+    table.add_column("Sales employee")
 
     for contract in contracts:
         table.add_row(
