@@ -137,13 +137,23 @@ def require_event_create_permission(
     """
     require_general_permission(employee, Permission.EVENT_CREATE)
 
-    if (
-        contract is None
-        or contract.customer is None
-        or not contract.is_signed
-        or contract.customer.id_sales_employee != employee.id_employee
-    ):
-        raise PermissionDeniedError("Permission denied.")
+    if contract is None:
+        raise PermissionDeniedError("Contract not found.")
+
+    if contract.customer is None:
+        raise PermissionDeniedError(
+            "The contract has no associated customer."
+        )
+
+    if contract.customer.id_sales_employee != employee.id_employee:
+        raise PermissionDeniedError(
+            "You can only create events for your own customers."
+        )
+
+    if not contract.is_signed:
+        raise PermissionDeniedError(
+            "An event can only be created for a signed contract."
+        )
 
 
 def require_event_update_permission(

@@ -282,7 +282,10 @@ def test_event_create_denies_unsigned_contract():
     contract.is_signed = False
     contract.customer.id_sales_employee = 1
 
-    with pytest.raises(PermissionDeniedError):
+    with pytest.raises(
+        PermissionDeniedError,
+        match="An event can only be created for a signed contract.",
+    ):
         require_event_create_permission(employee, contract)
 
 
@@ -297,7 +300,10 @@ def test_event_create_denies_unassigned_sales_employee():
     contract.is_signed = True
     contract.customer.id_sales_employee = 2
 
-    with pytest.raises(PermissionDeniedError):
+    with pytest.raises(
+        PermissionDeniedError,
+        match="You can only create events for your own customers.",
+    ):
         require_event_create_permission(employee, contract)
 
 
@@ -307,7 +313,10 @@ def test_event_create_denies_missing_contract():
     employee.is_active = True
     employee.role.name = "sales"
 
-    with pytest.raises(PermissionDeniedError):
+    with pytest.raises(
+        PermissionDeniedError,
+        match="Contract not found.",
+    ):
         require_event_create_permission(employee, None)
 
 
@@ -321,7 +330,10 @@ def test_event_create_denies_missing_customer():
     contract.is_signed = True
     contract.customer = None
 
-    with pytest.raises(PermissionDeniedError):
+    with pytest.raises(
+        PermissionDeniedError,
+        match="The contract has no associated customer.",
+    ):
         require_event_create_permission(employee, contract)
 
 
