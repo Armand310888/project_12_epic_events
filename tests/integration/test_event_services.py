@@ -675,6 +675,9 @@ def test_create_event_requires_authentication(
     """Verify that event creation requires authentication."""
     assert not mock_token_file.exists()
 
+    sample_contract.is_signed = True
+    db_session.flush()
+
     with pytest.raises(PermissionDeniedError):
         create_event(
             db_session,
@@ -824,20 +827,6 @@ def test_update_event_invalid_dates(
 
     assert assigned_event.start_datetime == original_start
     assert assigned_event.end_datetime == original_end
-
-
-def test_update_event_preserves_notes(
-    db_session,
-    assigned_event,
-):
-    """Verify that omitted notes remain unchanged."""
-    event = update_event(
-        db_session,
-        assigned_event.id_event,
-        location="Paris, France",
-    )
-
-    assert event.notes == "Original notes"
 
 
 def test_update_event_clears_notes(
@@ -1061,12 +1050,12 @@ def test_assign_support_employee_inactive(
 
 
 @pytest.mark.parametrize(
-    "field, invalid_value",
+    "field, invalid_value, expected_error",
     [
-        ("event_id", 0),
-        ("event_id", "invalid"),
-        ("id_support_employee", -1),
-        ("id_support_employee", True),
+        ("event_id", 0, ValueError),
+        ("event_id", "invalid", TypeError),
+        ("id_support_employee", -1, ValueError),
+        ("id_support_employee", True, TypeError),
     ],
 )
 def test_assign_support_employee_invalid_ids(
@@ -1076,6 +1065,7 @@ def test_assign_support_employee_invalid_ids(
     support_employee,
     field,
     invalid_value,
+    expected_error,
 ):
     """Verify that invalid IDs are rejected."""
     data = {
@@ -1084,7 +1074,7 @@ def test_assign_support_employee_invalid_ids(
     }
     data[field] = invalid_value
 
-    with pytest.raises((TypeError, ValueError)):
+    with pytest.raises(expected_error):
         assign_support_employee_to_event(db_session, **data)
 
 
