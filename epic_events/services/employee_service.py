@@ -195,3 +195,38 @@ def get_role_by_name(session: Session, name: str) -> Role | None:
     statement = select(Role).where(Role.name == name)
 
     return session.scalar(statement)
+
+
+def get_employees(
+    session: Session,
+    name: str | None = None,
+    role_name: str | None = None,
+) -> list[Employee]:
+    """
+    Retrieve employees matching optional filters.
+
+    Allow combined filtering by employee name and role.
+
+    Return matching employees, or an empty list if none exist.
+    Raise PermissionDeniedError if access is unauthorized.
+    Raise TypeError or ValueError if a filter is invalid.
+    Raise ValueError if the specified role does not exist.
+    """
+    employee = get_current_employee(session)
+    require_general_permission(employee, Permission.EMPLOYEE_READ)
+
+    statement = select(Employee)
+
+    if name is not None:
+        name = validate_full_name(name)
+        statement = statement.where(Employee.full_name.ilike(f"%{name}%"))
+
+    if role_name is not None:
+        role = get_role_by_name(session, role_name)
+
+        if role is None:
+            raise ValueError(f"Role '{role_name}' does not exist.")
+
+        statement = statement.where(Employee.role == role)
+
+    return list(session.scalars(statement).all())

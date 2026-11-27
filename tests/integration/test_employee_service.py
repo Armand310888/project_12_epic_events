@@ -12,6 +12,7 @@ from epic_events.services.employee_service import (
     create_employee,
     delete_employee,
     get_employee_by_id,
+    get_employees,
     get_role_by_name,
     update_employee,
 )
@@ -729,3 +730,303 @@ def test_get_role_by_name_rejects_invalid_type(db_session, name):
     """Reject role names that are not strings."""
     with pytest.raises(TypeError, match="Role name must be a string"):
         get_role_by_name(db_session, name)
+
+
+# Test 'get_employees'
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_success(
+    db_session,
+    sample_employee,
+):
+    """Verify that all existing employees are returned."""
+    sample_employee.role.name = "management"
+
+    other_employee = Employee(
+        full_name="Marie Martin",
+        email="marie@example.com",
+        password_hash="test-password-hash",
+        is_active=False,
+        id_role=sample_employee.id_role,
+    )
+    db_session.add(other_employee)
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    employees = get_employees(db_session)
+
+    assert isinstance(employees, list)
+    assert {employee.id_employee for employee in employees} == {
+        sample_employee.id_employee,
+        other_employee.id_employee,
+    }
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_by_name(
+    db_session,
+    sample_employee,
+):
+    """Verify case-insensitive partial employee name filtering."""
+    sample_employee.role.name = "management"
+    sample_employee.full_name = "Jean Dupont"
+
+    other_employee = Employee(
+        full_name="Marie Martin",
+        email="marie@example.com",
+        password_hash="test-password-hash",
+        is_active=True,
+        id_role=sample_employee.id_role,
+    )
+    db_session.add(other_employee)
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    employees = get_employees(
+        db_session,
+        name="  dUpOnT  ",
+    )
+
+    assert employees == [sample_employee]
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_by_role(
+    db_session,
+    sample_employee,
+):
+    """Verify that employees can be filtered by role name."""
+    sample_employee.role.name = "management"
+
+    sales_role = Role(name="sales")
+    db_session.add(sales_role)
+    db_session.flush()
+
+    other_employee = Employee(
+        full_name="Marie Martin",
+        email="marie@example.com",
+        password_hash="test-password-hash",
+        is_active=True,
+        id_role=sales_role.id_role,
+    )
+    db_session.add(other_employee)
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    employees = get_employees(
+        db_session,
+        role_name="  SALES  ",
+    )
+
+    assert employees == [other_employee]
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_combined_filters(
+    db_session,
+    sample_employee,
+):
+    """Verify that employee name and role filters can be combined."""
+    sample_employee.role.name = "management"
+    sample_employee.full_name = "Jean Dupont"
+
+    sales_role = Role(name="sales")
+    db_session.add(sales_role)
+    db_session.flush()
+
+    matching_employee = Employee(
+        full_name="Marie Dupont",
+        email="marie@example.com",
+        password_hash="test-password-hash",
+        is_active=True,
+        id_role=sales_role.id_role,
+    )
+
+    other_employee = Employee(
+        full_name="Paul Martin",
+        email="paul@example.com",
+        password_hash="test-password-hash",
+        is_active=True,
+        id_role=sales_role.id_role,
+    )
+
+    db_session.add_all([matching_employee, other_employee])
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    employees = get_employees(
+        db_session,
+        name="Dupont",
+        role_name="sales",
+    )
+
+    assert employees == [matching_employee]
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_no_matching_name(
+    db_session,
+    sample_employee,
+):
+    """Verify that a non-matching employee name returns an empty list."""
+    sample_employee.role.name = "management"
+    sample_employee.full_name = "Jean Dupont"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    assert get_employees(
+        db_session,
+        name="Martin",
+    ) == []
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_no_matching_role(
+    db_session,
+    sample_employee,
+):
+    """Verify that an existing role without employees returns an empty list."""
+    sample_employee.role.name = "management"
+
+    sales_role = Role(name="sales")
+    db_session.add(sales_role)
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    assert get_employees(
+        db_session,
+        role_name="sales",
+    ) == []
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_unknown_role(
+    db_session,
+    sample_employee,
+):
+    """Verify that filtering by an unknown role raises ValueError."""
+    sample_employee.role.name = "management"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(
+        ValueError,
+        match="Role 'unknown' does not exist.",
+    ):
+        get_employees(
+            db_session,
+            role_name="unknown",
+        )
+
+
+@pytest.mark.usefixtures("mock_token_file")
+@pytest.mark.parametrize(
+    "invalid_field, invalid_value, expected_error",
+    [
+        ("name", 123, TypeError),
+        ("name", "", ValueError),
+        ("role_name", 123, TypeError),
+        ("role_name", "", ValueError),
+    ],
+)
+def test_get_employees_invalid_filters(
+    db_session,
+    sample_employee,
+    invalid_field,
+    invalid_value,
+    expected_error,
+):
+    """Verify that invalid filter values are rejected."""
+    sample_employee.role.name = "management"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(expected_error):
+        get_employees(
+            db_session,
+            **{invalid_field: invalid_value},
+        )
+
+
+# Test employee read permissions
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_allows_management(
+    db_session,
+    sample_employee,
+):
+    """Verify that management employees can retrieve employees."""
+    sample_employee.role.name = "management"
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    assert get_employees(db_session) == [sample_employee]
+
+
+@pytest.mark.usefixtures("mock_token_file")
+@pytest.mark.parametrize(
+    "role_name",
+    ["sales", "support"],
+)
+def test_get_employees_denies_unauthorized_roles(
+    db_session,
+    sample_employee,
+    role_name,
+):
+    """Verify that unauthorized business roles cannot retrieve employees."""
+    sample_employee.role.name = role_name
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        get_employees(db_session)
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_requires_authentication(
+    db_session,
+):
+    """Verify that employee reading requires authentication."""
+    with pytest.raises(PermissionDeniedError):
+        get_employees(db_session)
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_denies_inactive_employee(
+    db_session,
+    sample_employee,
+):
+    """Verify that inactive employees cannot retrieve employees."""
+    sample_employee.role.name = "management"
+    sample_employee.is_active = False
+    db_session.flush()
+
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        get_employees(db_session)
+
+
+@pytest.mark.usefixtures("mock_token_file")
+def test_get_employees_denies_unknown_role(
+    db_session,
+    sample_employee,
+):
+    """Verify that employees with unknown roles cannot retrieve employees."""
+    # sample_employee has the unknown role "Test Role".
+    save_token(create_access_token(sample_employee.id_employee))
+
+    with pytest.raises(PermissionDeniedError):
+        get_employees(db_session)

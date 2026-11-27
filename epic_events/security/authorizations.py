@@ -7,6 +7,7 @@ from epic_events.models import Contract, Customer, Employee, Event
 
 class Permission(StrEnum):
     """Define the permissions available within the Epic Events application."""
+    EMPLOYEE_READ = auto()
     EMPLOYEE_CREATE = auto()
     EMPLOYEE_UPDATE = auto()
     EMPLOYEE_DELETE = auto()
@@ -33,6 +34,7 @@ ROLE_PERMISSIONS = {
         Permission.CONTRACT_UPDATE,
         Permission.EVENT_READ,
         Permission.EVENT_ASSIGN_SUPPORT,
+        Permission.EMPLOYEE_READ,
         Permission.EMPLOYEE_CREATE,
         Permission.EMPLOYEE_UPDATE,
         Permission.EMPLOYEE_DELETE,
