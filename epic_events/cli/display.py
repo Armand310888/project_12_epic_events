@@ -3,7 +3,7 @@
 from rich.console import Console
 from rich.table import Table
 
-from epic_events.models import Contract, Customer, Event
+from epic_events.models import Contract, Customer, Employee, Event
 
 console = Console()
 
@@ -96,6 +96,31 @@ def display_events(events: list[Event]) -> None:
             if event.id_support_employee is not None else "-",
             event.support_employee.full_name
             if event.support_employee is not None else "-",
+        )
+
+    console.print(table)
+
+
+def display_employees(employees: list[Employee]) -> None:
+    """Display employees in a formatted table"""
+    if not employees:
+        console.print("No employees found.")
+        return
+
+    table = Table(title="Employees")
+    table.add_column("ID")
+    table.add_column("Name")
+    table.add_column("Email")
+    table.add_column("Role")
+    table.add_column("Status")
+
+    for employee in employees:
+        table.add_row(
+            str(employee.id_employee),
+            employee.full_name,
+            employee.email,
+            employee.role.name,
+            "[green]Active[/green]" if employee.is_active else "[red]Inactive[/red]",
         )
 
     console.print(table)
